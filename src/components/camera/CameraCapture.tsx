@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { Camera, SwitchCamera, Zap, ZapOff, X, Check, ImageUp } from 'lucide-react'
+import { Camera, SwitchCamera, X, Check, ImageUp } from 'lucide-react'
 
 interface CameraCaptureProps {
   mode: 'ocr' | 'solve' | 'table'
@@ -48,7 +48,6 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
-  const [flash, setFlash] = useState(false)
   const [captured, setCaptured] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
@@ -163,13 +162,23 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     startCamera()
   }
 
+  function openAlbum() {
+    stopCamera()
+    setStarted(false)
+    setReady(false)
+    setError('')
+    fileInputRef.current?.click()
+  }
+
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith('image/')) return
     const reader = new FileReader()
     reader.onload = () => {
       setCaptured(reader.result as string)
       setHasCamera(false)
+      setError('')
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -252,23 +261,18 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       {/* Controls */}
       {!captured && ready && (
         <div className="flex items-center justify-around px-6 py-4 bg-black/90" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 16px)' }}>
-          <button onClick={switchCamera} className="w-[52px] h-[52px] flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
-            <SwitchCamera className="w-6 h-6 text-white" />
+          <button onClick={openAlbum} className="w-[52px] h-[52px] flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
+            <ImageUp className="w-6 h-6 text-white" />
           </button>
 
           <button onClick={takePhoto} className="w-[68px] h-[68px] rounded-full border-[3px] border-white flex items-center justify-center active:scale-95 transition-transform">
             <div className="w-[54px] h-[54px] rounded-full bg-white" />
           </button>
 
-          <button onClick={() => setFlash(!flash)} className="w-[52px] h-[52px] flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
-            {flash ? <Zap className="w-6 h-6 text-yellow-400" /> : <ZapOff className="w-6 h-6 text-white/70" />}
+          <button onClick={switchCamera} className="w-[52px] h-[52px] flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
+            <SwitchCamera className="w-6 h-6 text-white" />
           </button>
         </div>
-      )}
-
-      {/* Flash overlay */}
-      {flash && !captured && (
-        <div className="absolute inset-0 bg-white pointer-events-none opacity-50" />
       )}
 
       {/* After capture: confirm/retake */}
@@ -289,21 +293,28 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
         </div>
       )}
 
+      {/* Hidden file input — no capture attr so mobile opens photo library */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+        onChange={handleFileUpload}
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* Upload fallback */}
-      {(error || !started) && !captured && (
+      {!captured && (error || !started) && (
         <div className="flex justify-center px-6 py-4 bg-black/90" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 16px)' }}>
-          <label className="bg-blue-600 text-white px-6 h-[48px] rounded-2xl text-[15px] font-semibold flex items-center gap-2 active:scale-[0.98] transition-transform">
+          <button
+            type="button"
+            onClick={openAlbum}
+            className="bg-blue-600 text-white px-6 h-[48px] rounded-2xl text-[15px] font-semibold flex items-center gap-2 active:scale-[0.98] transition-transform"
+          >
             <ImageUp className="w-5 h-5" />
             从相册选择
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
+          </button>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CameraCapture from '@/components/camera/CameraCapture'
 import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
@@ -32,6 +32,7 @@ export default function AiSolvePage() {
   const [solving, setSolving] = useState(false)
   const [result, setResult] = useState<SolveResult | null>(null)
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function processImage(blob: Blob) {
     setMode(null)
@@ -102,7 +103,15 @@ export default function AiSolvePage() {
       <h1 className="text-xl font-bold text-gray-800">AI解题</h1>
       <p className="text-[14px] text-gray-400">拍照或上传题目图片，AI智能分析解答</p>
 
-      <input id="ai-solve-upload" type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+        onChange={handleFileUpload}
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
 
       {solving && (
         <div className="bg-white rounded-2xl p-10 shadow-sm text-center">
@@ -115,18 +124,20 @@ export default function AiSolvePage() {
       {error && !solving && !result && (
         <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-          <p className="text-[14px] text-red-600 mb-4">{error}</p>
-          <p className="text-[12px] text-gray-400 mb-6">
-            需要配置豆包 (Doubao) Vision API Key<br />
-            获取地址: console.volcengine.com/ark
+          <p className="text-[14px] text-red-600 mb-4 whitespace-pre-line text-left">{error}</p>
+          <p className="text-[12px] text-gray-400 mb-6 leading-relaxed">
+            需在服务器环境变量中配置：<br />
+            DOUBAO_API_KEY = 方舟 API Key<br />
+            DOUBAO_MODEL_ID = 推理接入点 Endpoint ID（ep- 开头）<br />
+            获取：console.volcengine.com/ark → 在线推理 → 推理接入点管理
           </p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => setMode('camera')} className="px-6 h-[44px] bg-purple-600 text-white rounded-xl text-[14px] font-semibold active:scale-[0.98] transition-transform">
               重新尝试
             </button>
-            <label htmlFor="ai-solve-upload" className="px-6 h-[44px] bg-gray-100 text-gray-700 rounded-xl text-[14px] font-semibold active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center">
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="px-6 h-[44px] bg-gray-100 text-gray-700 rounded-xl text-[14px] font-semibold active:scale-[0.98] transition-transform">
               上传图片
-            </label>
+            </button>
           </div>
         </div>
       )}
@@ -199,8 +210,8 @@ export default function AiSolvePage() {
             </div>
           </button>
 
-          <label htmlFor="ai-solve-upload"
-            className="w-full bg-white rounded-2xl p-5 shadow-sm active:scale-[0.98] transition-transform flex items-center gap-4 text-left cursor-pointer">
+          <button type="button" onClick={() => fileInputRef.current?.click()}
+            className="w-full bg-white rounded-2xl p-5 shadow-sm active:scale-[0.98] transition-transform flex items-center gap-4 text-left">
             <div className="w-[52px] h-[52px] bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0">
               <ImageUp className="w-[26px] h-[26px] text-blue-600" />
             </div>
@@ -208,7 +219,7 @@ export default function AiSolvePage() {
               <h3 className="text-[16px] font-bold text-gray-800">上传图片</h3>
               <p className="text-[12px] text-gray-400 mt-0.5">从相册选择题目图片，AI解题</p>
             </div>
-          </label>
+          </button>
         </div>
       )}
     </div>
