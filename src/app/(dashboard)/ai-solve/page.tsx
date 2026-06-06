@@ -10,10 +10,10 @@ interface SolveResult {
   id: string
   image_url: string
   subject: string
-  knowledge_points: string[]
+  knowledge_point: string
   analysis: string
-  steps: string[]
-  answer: string
+  solution_steps: string
+  correct_answer: string
 }
 
 interface SimilarQuestion {
@@ -48,25 +48,31 @@ export default function AiSolvePage() {
   const router = useRouter()
   const [mode, setMode] = useState<'camera' | 'upload' | null>(null)
   const [solving, setSolving] = useState(false)
-  const [result, setResult] = useState<SolveResult | null>(null)
+  const [results, setResults] = useState<SolveResult[]>([])
+  const [processingMsg, setProcessingMsg] = useState('')
   const [error, setError] = useState('')
   const [generating, setGenerating] = useState(false)
   const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestion[]>([])
+  const [expandedIdx, setExpandedIdx] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function processImage(blob: Blob) {
     setMode(null)
     setSolving(true)
     setError('')
+    setProcessingMsg('正在上传图片...')
+
     try {
       const fileName = `${Date.now()}.jpg`
       const file = new File([blob], fileName, { type: 'image/jpeg' })
 
+      setProcessingMsg('正在上传图片...')
       const [{ publicUrl, storagePath }, imageBase64] = await Promise.all([
         uploadImage(file),
         blobToBase64(blob),
       ])
 
+      setProcessingMsg('AI正在分析题目...')
       const res = await fetch('/api/ai/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,8 +81,9 @@ export default function AiSolvePage() {
 
       if (res.ok) {
         const { data } = await res.json()
-        setResult(data)
-        toast.success('AI解题完成')
+        const list = Array.isArray(data) ? data : [data]
+        setResults(list)
+        toast.success(`AI解题完成，识别到 ${list.length} 道题`)
       } else {
         const err = await res.json().catch(() => ({ error: 'AI解题失败' }))
         setError(err.error || 'AI服务暂不可用')
@@ -86,21 +93,23 @@ export default function AiSolvePage() {
       setError(msg)
     } finally {
       setSolving(false)
+      setProcessingMsg('')
     }
   }
 
   async function generateSimilar() {
-    if (!result) return
+    if (results.length === 0) return
     setGenerating(true)
+    const current = results[expandedIdx]
     try {
       const existingTexts = similarQuestions.map(q => q.question)
       const res = await fetch('/api/ai/similar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subject: result.subject,
-          knowledgePoints: result.knowledge_points,
-          answer: result.answer,
+          subject: current.subject,
+          knowledgePoints: current.knowledge_point?.split(',').filter(Boolean) || [],
+          answer: current.correct_answer,
           existingQuestions: existingTexts,
           count: 3,
         }),
@@ -138,12 +147,6 @@ export default function AiSolvePage() {
     reader.readAsDataURL(file)
   }
 
-  function saveToMistakes() {
-    if (!result) return
-    toast.success('已在错题本中')
-    router.push('/mistakes')
-  }
-
   return (
     <div className="space-y-5">
       {mode === 'camera' && (
@@ -152,7 +155,7 @@ export default function AiSolvePage() {
 
       <div>
         <h1 className="text-xl font-extrabold text-gray-800 tracking-tight">AI解题</h1>
-        <p className="text-sm text-gray-400 mt-1 font-medium">拍照或上传题目图片，AI智能分析解答</p>
+        <p className="text-sm text-gray-400 mt-1 font-medium">拍照或上传题目图片，AI智能分析解答所有题目</p>
       </div>
 
       <input
@@ -171,11 +174,11 @@ export default function AiSolvePage() {
             <Loader2 className="w-7 h-7 text-purple-500 animate-spin" />
           </div>
           <p className="text-base font-extrabold text-gray-800">AI正在分析题目...</p>
-          <p className="text-sm text-gray-400 mt-1 font-medium">这可能需要5-15秒</p>
+          <p className="text-xs text-gray-400 mt-1 font-medium">{processingMsg}</p>
         </div>
       )}
 
-      {error && !solving && !result && (
+      {error && !solving && results.length === 0 && (
         <div className="card p-8 text-center">
           <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-7 h-7 text-red-400" />
@@ -192,100 +195,139 @@ export default function AiSolvePage() {
         </div>
       )}
 
-      {result && !solving && (
+      {results.length > 0 && !solving && (
         <div className="space-y-4">
-          {result.image_url && (
-            <div className="card overflow-hidden">
-              <img src={result.image_url} alt="题目" className="w-full max-h-56 object-contain" />
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5">
-            <span className="tag bg-violet-50 text-violet-600">{result.subject}</span>
-            {result.knowledge_points?.map(p => (
-              <span key={p} className="tag bg-blue-50 text-blue-600">{p}</span>
-            ))}
-          </div>
-
-          <div className="card p-5">
-            <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
-              <div className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center">
-                <Lightbulb className="w-[15px] h-[15px] text-amber-500" />
-              </div>
-              分析
-            </h3>
-            <p className="text-sm text-gray-600 leading-relaxed">{result.analysis || '暂无分析'}</p>
-          </div>
-
-          {result.steps?.length > 0 && (
-            <div className="card p-5">
-              <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
-                <div className="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <ListChecks className="w-[15px] h-[15px] text-blue-500" />
-                </div>
-                解题步骤
-              </h3>
-              <ol className="space-y-2.5">
-                {result.steps.map((s, i) => (
-                  <li key={i} className="flex gap-3 text-sm text-gray-600">
-                    <span className="w-6 h-6 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
-                    <span className="pt-0.5">{s}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          <div className="card p-5">
-            <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
-              <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <CheckCircle className="w-[15px] h-[15px] text-emerald-500" />
-              </div>
-              答案
-            </h3>
-            <p className="text-lg font-extrabold text-emerald-700">{result.answer || '暂无答案'}</p>
-          </div>
-
-          {similarQuestions.length === 0 && (
-            <button onClick={generateSimilar} disabled={generating}
-              className="w-full h-[48px] bg-violet-50 text-violet-600 rounded-2xl text-sm font-bold active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-violet-100">
-              {generating ? '生成中...' : '推荐相似题型'}
-            </button>
-          )}
-
-          {similarQuestions.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-base font-extrabold text-gray-800 flex items-center gap-2">
-                <BookOpen className="w-[18px] h-[18px] text-violet-500" />
-                相似题型推荐 ({similarQuestions.length}道)
-              </h3>
-              {similarQuestions.map((q, i) => (
-                <div key={i} className="card p-4">
-                  <p className="text-xs font-bold text-violet-500">题目 {i + 1}</p>
-                  <p className="text-sm text-gray-700 mt-2 leading-relaxed">{q.question}</p>
-                  <details className="mt-4">
-                    <summary className="text-sm text-violet-600 font-bold cursor-pointer">查看答案</summary>
-                    <div className="mt-3 pl-1 space-y-1.5">
-                      <p className="text-sm text-emerald-700 font-bold">{q.answer}</p>
-                      <p className="text-xs text-gray-400 font-medium">提示：{q.hint}</p>
-                    </div>
-                  </details>
-                </div>
+          {/* Result count and switcher */}
+          {results.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {results.map((_, i) => (
+                <button key={i} onClick={() => { setExpandedIdx(i); setSimilarQuestions([]) }}
+                  className={`px-4 py-1.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${expandedIdx === i ? 'bg-violet-600 text-white shadow-md' : 'bg-white text-gray-500 shadow-sm'}`}>
+                  第{i + 1}题
+                </button>
               ))}
-              <button onClick={generateSimilar} disabled={generating}
-                className="w-full h-[48px] bg-violet-100 text-violet-700 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-violet-200">
-                <RefreshCw className={`w-[15px] h-[15px] ${generating ? 'animate-spin' : ''}`} />
-                {generating ? '生成中...' : '继续生成更多相似题'}
-              </button>
             </div>
           )}
+
+          {(() => {
+            const result = results[expandedIdx]
+            if (!result) return null
+            const steps = result.solution_steps?.split('\n').filter(Boolean) || []
+
+            return (
+              <div className="space-y-4">
+                {result.image_url && (
+                  <div className="card overflow-hidden">
+                    <img src={result.image_url} alt="题目" className="w-full max-h-56 object-contain" />
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="tag bg-violet-50 text-violet-600">{result.subject}</span>
+                  {result.knowledge_point?.split(',').filter(Boolean).map((p: string) => (
+                    <span key={p} className="tag bg-blue-50 text-blue-600">{p.trim()}</span>
+                  ))}
+                </div>
+
+                <div className="card p-5">
+                  <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
+                    <div className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center">
+                      <Lightbulb className="w-[15px] h-[15px] text-amber-500" />
+                    </div>
+                    分析
+                  </h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{result.analysis || '暂无分析'}</p>
+                </div>
+
+                {steps.length > 0 && (
+                  <div className="card p-5">
+                    <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
+                      <div className="w-7 h-7 rounded-xl bg-blue-100 flex items-center justify-center">
+                        <ListChecks className="w-[15px] h-[15px] text-blue-500" />
+                      </div>
+                      解题步骤
+                    </h3>
+                    <ol className="space-y-2.5">
+                      {steps.map((s: string, i: number) => (
+                        <li key={i} className="flex gap-3 text-sm text-gray-600">
+                          <span className="w-6 h-6 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+                          <span className="pt-0.5">{s}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                <div className="card p-5">
+                  <h3 className="flex items-center gap-2 text-[15px] font-extrabold text-gray-800 mb-3">
+                    <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
+                      <CheckCircle className="w-[15px] h-[15px] text-emerald-500" />
+                    </div>
+                    答案
+                  </h3>
+                  <p className="text-lg font-extrabold text-emerald-700">{result.correct_answer || '暂无答案'}</p>
+                </div>
+
+                {similarQuestions.length === 0 && (
+                  <button onClick={generateSimilar} disabled={generating}
+                    className="w-full h-[48px] bg-violet-50 text-violet-600 rounded-2xl text-sm font-bold active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-violet-100">
+                    {generating ? '生成中...' : '推荐相似题型'}
+                  </button>
+                )}
+
+                {similarQuestions.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-base font-extrabold text-gray-800 flex items-center gap-2">
+                      <BookOpen className="w-[18px] h-[18px] text-violet-500" />
+                      相似题型推荐 ({similarQuestions.length}道)
+                    </h3>
+                    {similarQuestions.map((q, i) => (
+                      <div key={i} className="card p-4">
+                        <p className="text-xs font-bold text-violet-500">题目 {i + 1}</p>
+                        <p className="text-sm text-gray-700 mt-2 leading-relaxed">{q.question}</p>
+                        <details className="mt-4">
+                          <summary className="text-sm text-violet-600 font-bold cursor-pointer">查看答案</summary>
+                          <div className="mt-3 pl-1 space-y-1.5">
+                            <p className="text-sm text-emerald-700 font-bold">{q.answer}</p>
+                            <p className="text-xs text-gray-400 font-medium">提示：{q.hint}</p>
+                          </div>
+                        </details>
+                      </div>
+                    ))}
+                    <button onClick={generateSimilar} disabled={generating}
+                      className="w-full h-[48px] bg-violet-100 text-violet-700 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-violet-200">
+                      <RefreshCw className={`w-[15px] h-[15px] ${generating ? 'animate-spin' : ''}`} />
+                      {generating ? '生成中...' : '继续生成更多相似题'}
+                    </button>
+                  </div>
+                )}
+
+                {results.length > 1 && (
+                  <div className="flex gap-3">
+                    {expandedIdx > 0 && (
+                      <button onClick={() => { setExpandedIdx(expandedIdx - 1); setSimilarQuestions([]) }}
+                        className="flex-1 h-[44px] bg-gray-100 text-gray-700 rounded-2xl text-sm font-bold active:scale-[0.98] transition-transform">
+                        ← 上一题
+                      </button>
+                    )}
+                    {expandedIdx < results.length - 1 && (
+                      <button onClick={() => { setExpandedIdx(expandedIdx + 1); setSimilarQuestions([]) }}
+                        className="flex-1 h-[44px] bg-violet-100 text-violet-700 rounded-2xl text-sm font-bold active:scale-[0.98] transition-transform">
+                        下一题 →
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           <div className="flex gap-3">
-            <button onClick={saveToMistakes}
+            <button onClick={() => router.push('/mistakes')}
               className="flex-1 h-[52px] bg-gradient-to-r from-orange-400 to-red-500 text-white rounded-2xl text-[15px] font-bold active:scale-[0.98] transition-all duration-200 shadow-[0_4px_20px_rgba(251,146,60,0.3)]">
-              查看错题本
+              查看错题本 ({results.length}道)
             </button>
-            <button onClick={() => { setResult(null); setError(''); setSimilarQuestions([]) }}
+            <button onClick={() => { setResults([]); setError(''); setSimilarQuestions([]); setExpandedIdx(0) }}
               className="w-[52px] h-[52px] bg-violet-50 text-violet-600 rounded-2xl flex items-center justify-center active:bg-violet-100 transition-colors">
               <Camera className="w-[20px] h-[20px]" />
             </button>
@@ -293,11 +335,11 @@ export default function AiSolvePage() {
         </div>
       )}
 
-      {!result && !error && !solving && (
+      {results.length === 0 && !error && !solving && (
         <div className="space-y-3">
           {[
-            { icon: Camera, color: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', label: '拍照解题', desc: '摄像头拍摄题目，AI自动识别分析', action: () => setMode('camera') },
-            { icon: ImageUp, color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-600', label: '上传图片', desc: '从相册选择题目图片，AI解题', action: () => fileInputRef.current?.click() },
+            { icon: Camera, color: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', label: '拍照解题', desc: '摄像头拍摄试卷，AI解答所有题目', action: () => setMode('camera') },
+            { icon: ImageUp, color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-600', label: '上传图片', desc: '从相册选择试卷图片，AI解答所有题目', action: () => fileInputRef.current?.click() },
           ].map(item => {
             const Icon = item.icon
             return (

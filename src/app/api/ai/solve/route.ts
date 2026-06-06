@@ -38,24 +38,29 @@ export async function POST(req: NextRequest) {
     const imageBase64 = imageBuffer.toString('base64')
 
     const { solveImage } = await import('@/lib/ai/doubao')
-    const result = await solveImage(imageBase64)
+    const results = await solveImage(imageBase64)
 
     const supabase = createServiceClient()
-    const { data: mistake, error } = await supabase.from('mistakes').insert({
-      user_id: auth.user.id,
-      image_url: imageUrl,
-      storage_path: storagePath || '',
-      subject: result.subject || '其他',
-      knowledge_points: result.knowledgePoints || [],
-      analysis: result.analysis,
-      steps: result.steps,
-      answer: result.answer,
-      source: 'ai_solve',
-    }).select().single()
+    const mistakes = []
 
-    if (error) throw new Error(error.message)
+    for (const result of results) {
+      const { data: mistake, error } = await supabase.from('mistakes').insert({
+        user_id: auth.user.id,
+        image_url: imageUrl,
+        storage_path: storagePath || '',
+        subject: result.subject || '其他',
+        knowledge_point: (result.knowledgePoints || []).join(', '),
+        analysis: result.analysis,
+        solution_steps: (result.steps || []).join('\n'),
+        correct_answer: result.answer,
+        keywords: (result.knowledgePoints || []).join(','),
+      }).select().single()
 
-    return NextResponse.json({ data: mistake })
+      if (error) throw new Error(error.message)
+      mistakes.push(mistake)
+    }
+
+    return NextResponse.json({ data: mistakes })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'AI解题失败'
     return NextResponse.json({ error: msg }, { status: 500 })

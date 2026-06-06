@@ -19,15 +19,27 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         toast.error(error.message.includes('Invalid') ? '邮箱或密码错误' : error.message)
         setLoading(false)
         return
       }
 
-      toast.success('登录成功')
-      router.push('/home')
+      // Check role for correct redirect (use cached role if available)
+      const cachedRole = (() => { try { return sessionStorage.getItem('user_role') } catch { return null } })()
+      if (cachedRole === 'admin' || cachedRole === 'super_admin') {
+        toast.success('登录成功')
+        router.push('/admin/dashboard')
+      } else {
+        const userId = data.user?.id
+        const res = await fetch(`/api/user/profile?userId=${userId}`)
+        const { data: profile } = await res.json().catch(() => ({}))
+        const role = profile?.role
+        if (role) { try { sessionStorage.setItem('user_role', role) } catch { /* */ } }
+        toast.success('登录成功')
+        router.push(role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/home')
+      }
       router.refresh()
     } catch { toast.error('登录失败，请重试') }
     finally { setLoading(false) }
