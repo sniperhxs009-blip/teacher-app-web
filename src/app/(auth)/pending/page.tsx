@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Clock, XCircle, Lock, LogOut } from 'lucide-react'
 
 export default function PendingPage() {
   const router = useRouter()
@@ -42,83 +43,68 @@ export default function PendingPage() {
     router.push('/login')
   }
 
+  const configs = {
+    pending: {
+      icon: Clock,
+      gradient: 'from-amber-400 to-orange-500',
+      shadow: 'shadow-[0_8px_32px_rgba(245,158,11,0.3)]',
+      title: '等待审核',
+      desc: '账号已注册成功，等待管理员审核后即可使用。',
+    },
+    rejected: {
+      icon: XCircle,
+      gradient: 'from-red-400 to-rose-500',
+      shadow: 'shadow-[0_8px_32px_rgba(244,63,94,0.3)]',
+      title: '审核未通过',
+      desc: '很遗憾，您的账号审核未通过。',
+    },
+    frozen: {
+      icon: Lock,
+      gradient: 'from-gray-400 to-gray-600',
+      shadow: 'shadow-[0_8px_32px_rgba(107,114,128,0.3)]',
+      title: '账号已冻结',
+      desc: '您的账号已被管理员冻结，请联系管理员处理。',
+    },
+  }
+
   if (status === 'loading') {
     return (
-      <div className="text-center py-10">
-        <div className="animate-spin w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full mx-auto" />
-        <p className="text-[14px] text-gray-400 mt-4">加载中...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-gray-100">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 font-medium">加载中...</p>
+        </div>
       </div>
     )
   }
 
-  if (status === 'pending') {
-    return (
-      <div className="text-center">
-        <div className="w-[72px] h-[72px] bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-yellow-200/50">
-          <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h1 className="text-[22px] font-bold text-gray-900">等待审核</h1>
-        <p className="text-[14px] text-gray-400 mt-2 mb-8 leading-relaxed">
-          账号已注册成功，等待管理员审核后即可使用。
-        </p>
-        <button
-          onClick={handleLogout}
-          className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-[15px] text-gray-500 font-medium active:scale-[0.98] transition-transform"
-        >
-          退出登录
-        </button>
-      </div>
-    )
-  }
+  const cfg = configs[status]
+  if (!cfg) return null
 
-  if (status === 'rejected') {
-    return (
-      <div className="text-center">
-        <div className="w-[72px] h-[72px] bg-gradient-to-br from-red-400 to-red-600 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-red-200/50">
-          <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+  const Icon = cfg.icon
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-gradient-to-b from-slate-50 via-white to-gray-100">
+      <div className="w-full max-w-sm text-center">
+        <div className={`w-20 h-20 bg-gradient-to-br ${cfg.gradient} rounded-3xl mx-auto flex items-center justify-center ${cfg.shadow}`}>
+          <Icon className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-[22px] font-bold text-gray-900">审核未通过</h1>
-        <p className="text-[14px] text-gray-400 mt-2 mb-4">很遗憾，您的账号审核未通过。</p>
-        {reason && (
-          <p className="text-[14px] text-red-600 bg-red-50 rounded-xl p-4 mb-6">
-            原因：{reason}
-          </p>
+        <h1 className="text-2xl font-extrabold text-gray-900 mt-5">{cfg.title}</h1>
+        <p className="text-sm text-gray-500 mt-3 mb-8 leading-relaxed px-2">{cfg.desc}</p>
+
+        {status === 'rejected' && reason && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-6 text-left">
+            <p className="text-xs font-bold text-red-500 uppercase tracking-wider mb-1">拒绝原因</p>
+            <p className="text-sm text-red-700 font-medium">{reason}</p>
+          </div>
         )}
-        <button
-          onClick={handleLogout}
-          className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-[15px] text-gray-500 font-medium active:scale-[0.98] transition-transform"
-        >
+
+        <button onClick={handleLogout}
+          className="btn-secondary flex items-center justify-center gap-2">
+          <LogOut className="w-[18px] h-[18px]" />
           退出登录
         </button>
       </div>
-    )
-  }
-
-  if (status === 'frozen') {
-    return (
-      <div className="text-center">
-        <div className="w-[72px] h-[72px] bg-gradient-to-br from-gray-400 to-gray-600 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg">
-          <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        </div>
-        <h1 className="text-[22px] font-bold text-gray-900">账号已冻结</h1>
-        <p className="text-[14px] text-gray-400 mt-2 mb-8 leading-relaxed">
-          您的账号已被管理员冻结，请联系管理员处理。
-        </p>
-        <button
-          onClick={handleLogout}
-          className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-[15px] text-gray-500 font-medium active:scale-[0.98] transition-transform"
-        >
-          退出登录
-        </button>
-      </div>
-    )
-  }
-
-  return null
+    </div>
+  )
 }

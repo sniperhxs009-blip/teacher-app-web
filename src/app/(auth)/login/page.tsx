@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
+import { LogIn } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -43,40 +44,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="text-center">
-      <div className="w-[72px] h-[72px] bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-blue-200/50">
-        <span className="text-white text-3xl font-bold">教</span>
-      </div>
-      <h1 className="text-[22px] font-bold text-gray-900">教师助手</h1>
-      <p className="text-[13px] text-gray-400 mt-1 mb-7">教师教学好帮手</p>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-gradient-to-b from-slate-50 via-white to-gray-100">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl mx-auto flex items-center justify-center shadow-[0_8px_32px_rgba(99,102,241,0.35)]">
+            <span className="text-white text-4xl font-black">教</span>
+          </div>
+          <h1 className="text-2xl font-extrabold text-gray-900 mt-5 tracking-tight">教师助手</h1>
+          <p className="text-sm text-gray-400 mt-1.5 font-medium">教师教学好帮手</p>
+        </div>
 
-      <form onSubmit={handleLogin} className="space-y-3.5 text-left">
-        <div>
+        <form onSubmit={handleLogin} className="space-y-3.5">
           <input
             type="email" required value={email} inputMode="email" autoComplete="email"
             onChange={e => setEmail(e.target.value)}
-            className="w-full h-[50px] px-4 bg-gray-50 border-0 rounded-xl text-[15px] outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-            placeholder="邮箱"
+            className="input-base" placeholder="邮箱"
           />
-        </div>
-        <div>
           <input
             type="password" required value={password} autoComplete="current-password"
             onChange={e => setPassword(e.target.value)}
-            className="w-full h-[50px] px-4 bg-gray-50 border-0 rounded-xl text-[15px] outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
-            placeholder="密码"
+            className="input-base" placeholder="密码"
           />
-        </div>
-        <button type="submit" disabled={loading}
-          className="w-full h-[50px] bg-blue-600 text-white rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 shadow-lg shadow-blue-200/50">
-          {loading ? '登录中...' : '登录'}
-        </button>
-      </form>
+          <button type="submit" disabled={loading}
+            className="btn-primary flex items-center justify-center gap-2">
+            <LogIn className="w-[18px] h-[18px]" />
+            {loading ? '登录中...' : '登录'}
+          </button>
+        </form>
 
-      <p className="text-[13px] text-gray-400 mt-6">
-        还没有账号？{' '}
-        <Link href="/register" className="text-blue-600 font-semibold">立即注册</Link>
-      </p>
+        <p className="text-sm text-gray-400 mt-6 text-center font-medium">
+          还没有账号？{' '}
+          <Link href="/register" className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors">立即注册</Link>
+        </p>
+      </div>
     </div>
   )
 }

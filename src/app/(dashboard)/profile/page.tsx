@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
+import { LogOut, User, Phone, School, Shield, CircleCheck } from 'lucide-react'
+
+const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+  approved: { label: '已通过', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  pending: { label: '审核中', color: 'text-amber-600', bg: 'bg-amber-50' },
+  frozen: { label: '已冻结', color: 'text-blue-600', bg: 'bg-blue-50' },
+  rejected: { label: '未通过', color: 'text-red-600', bg: 'bg-red-50' },
+}
+
+const roleMap: Record<string, string> = {
+  teacher: '教师',
+  admin: '管理员',
+  super_admin: '超级管理员',
+}
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -36,52 +50,57 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-[3px] border-indigo-500 border-t-transparent rounded-full" />
       </div>
     )
   }
 
+  const st = statusMap[profile.status] || statusMap.approved
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-800">我的</h1>
+    <div className="space-y-5">
+      <h1 className="text-xl font-extrabold text-gray-800 tracking-tight">我的</h1>
 
       {/* Avatar Card */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center gap-4">
-        <div className="w-[60px] h-[60px] bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white text-[24px] font-bold shadow-lg shadow-blue-200/50 flex-shrink-0">
+      <div className="card p-5 flex items-center gap-4">
+        <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-[0_4px_16px_rgba(99,102,241,0.3)] flex-shrink-0">
           {profile.nickname?.[0] || '教'}
         </div>
         <div className="min-w-0">
-          <p className="text-[17px] font-bold text-gray-800">{profile.nickname}</p>
-          <p className="text-[13px] text-gray-400 mt-0.5">{profile.school || '未填写学校'} · {profile.subject || '未填写科目'}</p>
+          <p className="text-lg font-extrabold text-gray-800">{profile.nickname}</p>
+          <p className="text-sm text-gray-400 mt-0.5 font-medium">{profile.school || '未填写学校'} · {profile.subject || '未填写科目'}</p>
         </div>
       </div>
 
-      {/* Info List */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 h-[52px]">
-          <span className="text-[14px] text-gray-500">真实姓名</span>
-          <span className="text-[14px] text-gray-800 font-medium">{profile.real_name || '-'}</span>
-        </div>
-        <div className="flex items-center justify-between px-5 h-[52px] border-t border-gray-50">
-          <span className="text-[14px] text-gray-500">手机号</span>
-          <span className="text-[14px] text-gray-800 font-medium">{profile.phone || '-'}</span>
-        </div>
-        <div className="flex items-center justify-between px-5 h-[52px] border-t border-gray-50">
-          <span className="text-[14px] text-gray-500">角色</span>
-          <span className="text-[14px] text-gray-800 font-medium">{profile.role === 'teacher' ? '教师' : profile.role === 'admin' ? '管理员' : '超级管理员'}</span>
-        </div>
-        <div className="flex items-center justify-between px-5 h-[52px] border-t border-gray-50">
-          <span className="text-[14px] text-gray-500">状态</span>
-          <span className={`text-[14px] font-semibold ${profile.status === 'approved' ? 'text-green-600' : profile.status === 'pending' ? 'text-yellow-600' : profile.status === 'frozen' ? 'text-blue-600' : 'text-red-600'}`}>
-            {profile.status === 'approved' ? '已通过' : profile.status === 'pending' ? '审核中' : profile.status === 'frozen' ? '已冻结' : '未通过'}
-          </span>
-        </div>
+      {/* Info Cards */}
+      <div className="card overflow-hidden divide-y divide-gray-50">
+        {[
+          { icon: User, label: '真实姓名', value: profile.real_name || '-' },
+          { icon: Phone, label: '手机号', value: profile.phone || '-' },
+          { icon: School, label: '学校', value: profile.school || '-' },
+          { icon: Shield, label: '角色', value: roleMap[profile.role] || profile.role || '-' },
+          { icon: CircleCheck, label: '状态', value: st.label, valueColor: st.color, valueBg: st.bg, badge: true },
+        ].map((item, i) => {
+          const Icon = item.icon
+          return (
+            <div key={i} className="flex items-center justify-between px-5 h-[54px]">
+              <div className="flex items-center gap-3 text-gray-500">
+                <Icon className="w-[18px] h-[18px]" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </div>
+              {item.badge ? (
+                <span className={`tag ${item.valueColor} ${item.valueBg}`}>{item.value}</span>
+              ) : (
+                <span className="text-sm text-gray-800 font-semibold">{item.value}</span>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      <button
-        onClick={handleLogout}
-        className="w-full h-[50px] bg-red-50 text-red-600 rounded-2xl text-[15px] font-semibold active:scale-[0.98] transition-transform"
-      >
+      <button onClick={handleLogout}
+        className="w-full h-[52px] bg-red-50 text-red-600 rounded-2xl text-[15px] font-bold active:scale-[0.98] transition-all duration-200 hover:bg-red-100 flex items-center justify-center gap-2">
+        <LogOut className="w-[18px] h-[18px]" />
         退出登录
       </button>
     </div>

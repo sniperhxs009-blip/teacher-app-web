@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { FileSpreadsheet, Wand2, Tag } from 'lucide-react'
+import { Wand2, Tag, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 function getColLabel(n: number): string {
@@ -183,50 +183,53 @@ export default function OcrResultPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" /></div>
+    return (
+      <div className="flex justify-center py-20">
+        <div className="animate-spin w-8 h-8 border-[3px] border-indigo-500 border-t-transparent rounded-full" />
+      </div>
+    )
   }
 
   if (!result) {
-    return <div className="text-center py-16 text-gray-400 text-[15px]">结果不存在</div>
+    return (
+      <div className="text-center py-16">
+        <p className="text-gray-400 text-[15px] font-medium">结果不存在</p>
+      </div>
+    )
   }
 
   const colCount = tableData[0]?.length || 0
   const colLabels = Array.from({ length: colCount }, (_, i) => getColLabel(i))
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={() => router.back()} className="text-[14px] text-blue-600 font-semibold active:scale-[0.98] transition-transform">&larr; 返回</button>
-        <h1 className="text-lg font-bold text-gray-800">识别结果</h1>
+        <button onClick={() => router.back()} className="text-sm text-indigo-600 font-bold active:scale-[0.98] transition-transform">&larr; 返回</button>
+        <h1 className="text-lg font-extrabold text-gray-800">识别结果</h1>
         <div className="w-[52px]" />
       </div>
 
-      {/* 提示栏 — 和小程序一致 */}
-      <div className="bg-yellow-50 text-yellow-700 text-[12px] px-4 py-2 rounded-xl text-center font-medium">
+      <div className="bg-amber-50 text-amber-700 text-xs px-4 py-3 rounded-2xl text-center font-bold">
         识别完成，请仔细核对每个单元格再保存
       </div>
 
-      {/* 状态栏 */}
-      <div className="text-center text-[12px] text-gray-500">
+      <div className="text-center text-xs text-gray-400 font-bold">
         共识别 {tableData.length} 行 × {colCount} 列
       </div>
 
-      {/* 原始图片 */}
       {result.original_image && (
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+        <div className="card overflow-hidden">
           <img src={result.original_image} alt="original" className="w-full max-h-48 object-contain" />
         </div>
       )}
 
-      {/* 表格 — Excel样式，带行列号 */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-auto" style={{ maxHeight: '60vh' }}>
-        <table className="border-collapse text-[13px]">
-          {/* 列号表头 */}
+      <div className="card overflow-auto" style={{ maxHeight: '60vh' }}>
+        <table className="border-collapse text-[13px] w-full">
           <thead>
             <tr>
-              <th className="sticky top-0 z-10 bg-gray-100 border border-gray-200 px-2 py-2 text-center text-[11px] text-gray-500 font-medium min-w-[40px]"></th>
+              <th className="sticky top-0 z-10 bg-gray-100 border border-gray-200 px-2 py-2.5 text-center text-[11px] text-gray-500 font-bold min-w-[40px]"></th>
               {colLabels.map((label, ci) => (
-                <th key={ci} className="sticky top-0 z-10 bg-blue-50 border border-gray-200 px-3 py-2 text-center text-[12px] text-blue-700 font-semibold min-w-[80px]">
+                <th key={ci} className="sticky top-0 z-10 bg-indigo-50 border border-gray-200 px-3 py-2.5 text-center text-xs text-indigo-600 font-bold min-w-[80px]">
                   {label}
                 </th>
               ))}
@@ -235,8 +238,7 @@ export default function OcrResultPage() {
           <tbody>
             {tableData.map((row, ri) => (
               <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                {/* 行号 */}
-                <td className="border border-gray-200 px-2 py-1.5 text-center text-[11px] text-gray-500 font-medium bg-gray-100 sticky left-0">
+                <td className="border border-gray-200 px-2 py-1.5 text-center text-[11px] text-gray-500 font-bold bg-gray-100 sticky left-0">
                   {ri + 1}
                 </td>
                 {row.map((cell, ci) => {
@@ -249,12 +251,12 @@ export default function OcrResultPage() {
                           onChange={e => updateCell(ri, ci, e.target.value)}
                           onBlur={() => setEditingCell(null)}
                           autoFocus
-                          className="w-full h-[36px] px-2 text-[13px] outline-none ring-2 ring-blue-500 bg-blue-50/50"
+                          className="w-full h-[36px] px-2 text-[13px] outline-none ring-2 ring-indigo-500 bg-indigo-50/50"
                         />
                       ) : (
                         <div
                           onClick={() => setEditingCell({ r: ri, c: ci })}
-                          className="w-full min-h-[36px] px-2 py-2 text-[13px] text-gray-700 cursor-text hover:bg-blue-50/30 transition-colors"
+                          className="w-full min-h-[36px] px-2 py-2 text-[13px] text-gray-700 cursor-text hover:bg-indigo-50/30 transition-colors"
                         >
                           {cell || ' '}
                         </div>
@@ -268,54 +270,51 @@ export default function OcrResultPage() {
         </table>
       </div>
 
-      {/* AI功能栏 */}
       <div className="flex gap-2">
         <button onClick={aiCorrect} disabled={aiCorrecting}
-          className="flex-1 h-[44px] bg-purple-50 text-purple-600 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-transform">
+          className="flex-1 h-[44px] bg-violet-50 text-violet-600 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-violet-100">
           <Wand2 className="w-[16px] h-[16px]" />
           {aiCorrecting ? 'AI纠错中...' : 'AI智能纠错'}
         </button>
         <button onClick={aiClassify} disabled={aiClassifying}
-          className="flex-1 h-[44px] bg-blue-50 text-blue-600 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-transform">
+          className="flex-1 h-[44px] bg-blue-50 text-blue-600 rounded-2xl text-[13px] font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:bg-blue-100">
           <Tag className="w-[16px] h-[16px]" />
           {aiClassifying ? 'AI分类中...' : 'AI智能分类'}
         </button>
       </div>
 
       {aiResult && (
-        <div className="bg-green-50 text-green-700 text-[13px] px-4 py-3 rounded-xl">
+        <div className="bg-emerald-50 text-emerald-700 text-[13px] px-4 py-3 rounded-2xl font-medium">
           {aiResult}
         </div>
       )}
 
-      {/* 行操作 */}
       <div className="flex gap-2">
         <button onClick={addRow}
-          className="flex-1 h-[40px] bg-white border border-gray-200 text-gray-600 rounded-2xl text-[13px] font-medium active:scale-[0.98] transition-transform">
+          className="flex-1 h-[40px] bg-white border border-gray-200 text-gray-600 rounded-2xl text-[13px] font-bold active:scale-[0.98] transition-all duration-200 hover:border-gray-300">
           + 添加行
         </button>
         <button onClick={deleteRow}
-          className="flex-1 h-[40px] bg-white border border-gray-200 text-gray-600 rounded-2xl text-[13px] font-medium active:scale-[0.98] transition-transform">
+          className="flex-1 h-[40px] bg-white border border-gray-200 text-gray-600 rounded-2xl text-[13px] font-bold active:scale-[0.98] transition-all duration-200 hover:border-gray-300">
           - 删除行
         </button>
       </div>
 
-      {/* 底部操作按钮 */}
       <div className="flex gap-3 pb-4">
         <button onClick={saveOnly} disabled={saving}
-          className="flex-1 h-[50px] bg-white border-2 border-blue-500 text-blue-600 rounded-2xl text-[15px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform">
+          className="flex-1 h-[52px] bg-white border-2 border-indigo-200 text-indigo-600 rounded-2xl text-[15px] font-bold active:scale-[0.98] disabled:opacity-50 transition-all duration-200 hover:border-indigo-400">
           {saving ? '保存中...' : '仅保存记录'}
         </button>
         <button onClick={archiveToSheets} disabled={saving}
-          className="flex-1 h-[50px] bg-blue-600 text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform shadow-lg shadow-blue-200/50">
+          className="flex-1 h-[52px] bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl text-[15px] font-bold active:scale-[0.98] disabled:opacity-50 transition-all duration-200 shadow-[0_4px_20px_rgba(99,102,241,0.3)]">
           {saving ? '保存中...' : '归档到表格库'}
         </button>
       </div>
 
       {result.excel_file && (
         <a href={result.excel_file} target="_blank" rel="noopener noreferrer"
-          className="block w-full h-[48px] bg-green-50 text-green-600 rounded-2xl text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform mb-4">
-          <FileSpreadsheet className="w-[18px] h-[18px]" />
+          className="flex items-center justify-center gap-2 w-full h-[48px] bg-emerald-50 text-emerald-600 rounded-2xl text-sm font-bold active:scale-[0.98] transition-all duration-200 hover:bg-emerald-100 mb-4">
+          <Download className="w-[18px] h-[18px]" />
           下载 Excel 文件
         </a>
       )}
