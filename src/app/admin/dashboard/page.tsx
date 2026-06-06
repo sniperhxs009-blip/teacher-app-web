@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users, Clock, FileSpreadsheet, BookOpen } from 'lucide-react'
+import { Users, Clock, FileSpreadsheet, BookOpen, CheckCircle2, ScanLine } from 'lucide-react'
 
-interface Stats { userCount: number; pendingCount: number; sheetCount: number; mistakeCount: number }
+interface Stats {
+  userCount: number
+  pendingCount: number
+  approvedCount: number
+  sheetCount: number
+  mistakeCount: number
+  ocrCount: number
+}
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null)
@@ -18,9 +25,11 @@ export default function AdminDashboardPage() {
 
   const cards = [
     { label: '总用户', value: stats.userCount, icon: Users, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', text: 'text-blue-600' },
-    { label: '待审核', value: stats.pendingCount, icon: Clock, color: 'from-yellow-500 to-orange-600', bg: 'bg-yellow-50', text: 'text-yellow-600' },
-    { label: '表格', value: stats.sheetCount, icon: FileSpreadsheet, color: 'from-green-500 to-emerald-600', bg: 'bg-green-50', text: 'text-green-600' },
-    { label: '错题', value: stats.mistakeCount, icon: BookOpen, color: 'from-purple-500 to-indigo-600', bg: 'bg-purple-50', text: 'text-purple-600' },
+    { label: '已通过', value: stats.approvedCount, icon: CheckCircle2, color: 'from-emerald-500 to-green-600', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+    { label: '待审核', value: stats.pendingCount, icon: Clock, color: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', text: 'text-amber-600' },
+    { label: '表格', value: stats.sheetCount, icon: FileSpreadsheet, color: 'from-cyan-500 to-teal-600', bg: 'bg-cyan-50', text: 'text-cyan-600' },
+    { label: '错题', value: stats.mistakeCount, icon: BookOpen, color: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600' },
+    { label: 'OCR记录', value: stats.ocrCount, icon: ScanLine, color: 'from-rose-500 to-pink-600', bg: 'bg-rose-50', text: 'text-rose-600' },
   ]
 
   return (
@@ -31,11 +40,11 @@ export default function AdminDashboardPage() {
           const Icon = c.icon
           return (
             <div key={c.label} className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className={`w-[40px] h-[40px] rounded-xl flex items-center justify-center ${c.bg}`}>
-                <Icon className={`w-[20px] h-[20px] ${c.text}`} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.bg}`}>
+                <Icon className={`w-5 h-5 ${c.text}`} />
               </div>
               <p className="text-[28px] font-bold text-gray-800 mt-3">{c.value}</p>
-              <p className="text-[12px] text-gray-400 mt-0.5">{c.label}</p>
+              <p className="text-xs text-gray-400 mt-0.5 font-medium">{c.label}</p>
             </div>
           )
         })}
