@@ -21,7 +21,7 @@ export async function recognizeTable(imageBase64: string): Promise<{ tables: Rec
   const token = await getAccessToken()
   const res = await axios.post(
     `https://aip.baidubce.com/rest/2.0/solution/v1/form_ocr/request?access_token=${token}`,
-    { image: imageBase64, is_sync: 'true' },
+    new URLSearchParams({ image: imageBase64, is_sync: 'true' }),
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
   )
   const result = res.data
@@ -38,7 +38,7 @@ export async function recognizeText(imageBase64: string): Promise<{ words: strin
   const token = await getAccessToken()
   const res = await axios.post(
     `https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token=${token}`,
-    { image: imageBase64 },
+    new URLSearchParams({ image: imageBase64 }),
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
   )
   const result = res.data

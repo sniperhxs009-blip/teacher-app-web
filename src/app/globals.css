@@ -7,6 +7,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.touch-pressed:active {
+  opacity: 0.7;
+  transform: scale(0.95);
+  transition: opacity 0.1s, transform 0.1s;
+}
+
 /* iOS zoom prevention — minimum 16px on inputs */
 input, textarea, select {
   font-size: 16px;

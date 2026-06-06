@@ -23,7 +23,6 @@ export default function AiSolvePage() {
   const [solving, setSolving] = useState(false)
   const [result, setResult] = useState<SolveResult | null>(null)
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   async function processImage(blob: Blob) {
     setMode(null)
@@ -87,21 +86,10 @@ export default function AiSolvePage() {
     reader.readAsDataURL(file)
   }
 
-  async function saveToMistakes() {
+  function saveToMistakes() {
     if (!result) return
-    setSaving(true)
-    const res = await fetch(`/api/mistakes/${result.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'ai_solve' }),
-    })
-    if (res.ok) {
-      toast.success('已保存到错题本')
-      router.push('/mistakes')
-    } else {
-      toast.error('保存失败')
-    }
-    setSaving(false)
+    toast.success('已在错题本中')
+    router.push('/mistakes')
   }
 
   return (
@@ -190,9 +178,9 @@ export default function AiSolvePage() {
           </div>
 
           <div className="flex gap-3">
-            <button onClick={saveToMistakes} disabled={saving}
-              className="flex-1 h-[50px] bg-orange-600 text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform shadow-lg shadow-orange-200/50">
-              {saving ? '保存中...' : '保存到错题本'}
+            <button onClick={saveToMistakes}
+              className="flex-1 h-[50px] bg-orange-600 text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] transition-transform shadow-lg shadow-orange-200/50">
+              查看错题本
             </button>
             <button onClick={() => { setResult(null); setError('') }}
               className="w-[50px] h-[50px] bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center active:bg-purple-100 transition-colors">

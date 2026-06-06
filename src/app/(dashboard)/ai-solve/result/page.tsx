@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Lightbulb, ListChecks, CheckCircle, BookOpen } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -28,16 +27,10 @@ export default function AiSolveResultPage() {
   useEffect(() => {
     if (!mistakeId) { setLoading(false); return }
     async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const params = new URLSearchParams({ userId: user.id, limit: '100' })
-      const res = await fetch(`/api/mistakes?${params}`)
+      const res = await fetch(`/api/mistakes/${mistakeId}`)
       if (res.ok) {
         const { data } = await res.json()
-        const found = data?.find((m: SolveResult) => m.id === mistakeId)
-        if (found) setResult(found)
+        if (data) setResult(data)
       }
       setLoading(false)
     }
@@ -67,19 +60,9 @@ export default function AiSolveResultPage() {
     finally { setGenerating(false) }
   }
 
-  async function addToMistakes() {
-    if (!result) return
-    const res = await fetch(`/api/mistakes/${result.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'ai_solve' }),
-    })
-    if (res.ok) {
-      toast.success('已加入错题本')
-      router.push('/mistakes')
-    } else {
-      toast.error('操作失败')
-    }
+  function addToMistakes() {
+    toast.success('已在错题本中')
+    router.push('/mistakes')
   }
 
   if (loading) {
@@ -140,7 +123,7 @@ export default function AiSolveResultPage() {
       </div>
 
       <button onClick={addToMistakes} className="w-full h-[50px] bg-orange-600 text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] transition-transform shadow-lg shadow-orange-200/50">
-        加入错题本
+        查看错题本
       </button>
 
       {!similarQuestions && (

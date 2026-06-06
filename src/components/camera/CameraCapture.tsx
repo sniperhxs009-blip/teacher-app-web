@@ -9,6 +9,40 @@ interface CameraCaptureProps {
   onClose: () => void
 }
 
+async function getCameraStream(facingMode: 'environment' | 'user'): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    { video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+    { video: { facingMode }, audio: false },
+    { video: true, audio: false },
+  ]
+  let lastError: unknown
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints)
+    } catch (e) {
+      lastError = e
+    }
+  }
+  throw lastError
+}
+
+function getCameraErrorMessage(err: unknown): string {
+  if (!(err instanceof DOMException)) return '摄像头不可用，请使用相册上传'
+  if (err.name === 'NotAllowedError' || err.message.includes('Permission')) {
+    return '摄像头权限被拒绝\n请在浏览器设置中允许访问摄像头'
+  }
+  if (err.name === 'NotFoundError' || err.message.includes('NotFound')) {
+    return '未检测到摄像头设备'
+  }
+  if (err.name === 'NotReadableError') {
+    return '摄像头被其他应用占用\n请关闭后重试'
+  }
+  if (err.name === 'OverconstrainedError') {
+    return '当前设备不支持该摄像头配置\n请使用相册上传'
+  }
+  return '摄像头不可用，请使用相册上传'
+}
+
 export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -22,69 +56,77 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
   const [started, setStarted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const startCamera = useCallback(async () => {
-    try {
-      setError('')
-      setReady(false)
-      const constraints: MediaStreamConstraints = {
-        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      }
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-        setReady(true)
-        setStarted(true)
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof DOMException ? err.message : '摄像头不可用'
-      if (msg.includes('NotAllowed') || msg.includes('Permission')) {
-        setError('摄像头权限被拒绝\n请在浏览器设置中允许访问摄像头')
-      } else if (msg.includes('NotFound') || msg.includes('Devices')) {
-        setError('未检测到摄像头设备')
-      } else {
-        setError('摄像头不可用，请使用相册上传')
-      }
-      setHasCamera(false)
-    }
-  }, [facingMode])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
-      }
-    }
-  }, [])
-
   function stopCamera() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
   }
 
+  const attachStream = useCallback(async (stream: MediaStream) => {
+    const video = videoRef.current
+    if (!video) {
+      stream.getTracks().forEach(t => t.stop())
+      throw new Error('视频元素未就绪')
+    }
+    video.srcObject = stream
+    await video.play()
+    setReady(true)
+  }, [])
+
+  const startCamera = useCallback(async () => {
+    if (!window.isSecureContext) {
+      setError('摄像头需要在 HTTPS 安全连接下使用\n请使用 https:// 访问本网站')
+      setHasCamera(false)
+      return
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('当前浏览器不支持摄像头\n请使用相册上传')
+      setHasCamera(false)
+      return
+    }
+
+    try {
+      setError('')
+      setReady(false)
+      setStarted(true)
+      stopCamera()
+
+      const stream = await getCameraStream(facingMode)
+      streamRef.current = stream
+      await attachStream(stream)
+    } catch (err: unknown) {
+      stopCamera()
+      setError(getCameraErrorMessage(err))
+      setHasCamera(false)
+      setStarted(false)
+    }
+  }, [facingMode, attachStream])
+
+  useEffect(() => {
+    return () => stopCamera()
+  }, [])
+
   async function switchCamera() {
-    stopCamera()
-    setReady(false)
     const newMode = facingMode === 'environment' ? 'user' : 'environment'
     setFacingMode(newMode)
-    // Start camera with the new facing mode directly from this click handler
+    stopCamera()
+    setReady(false)
+    setStarted(true)
+    setError('')
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: newMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      })
+      const stream = await getCameraStream(newMode)
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-        setReady(true)
-      }
-    } catch { /* keep current error state */ }
+      await attachStream(stream)
+    } catch (err: unknown) {
+      stopCamera()
+      setError(getCameraErrorMessage(err))
+      setStarted(false)
+    }
   }
 
   function takePhoto() {
@@ -117,6 +159,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
   function retakePhoto() {
     setCaptured(null)
     setReady(false)
+    setStarted(false)
     startCamera()
   }
 
@@ -129,6 +172,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       setHasCamera(false)
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   function confirmFileUpload() {
@@ -167,32 +211,41 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       <div className="flex-1 relative bg-black overflow-hidden">
         {captured ? (
           <img src={captured} alt="captured" className="w-full h-full object-contain" />
-        ) : ready ? (
-          <>
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-            {/* Viewfinder corners */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-8 left-8 w-8 h-8 border-t-[3px] border-l-[3px] border-white/60 rounded-tl-lg" />
-              <div className="absolute top-8 right-8 w-8 h-8 border-t-[3px] border-r-[3px] border-white/60 rounded-tr-lg" />
-              <div className="absolute bottom-8 left-8 w-8 h-8 border-b-[3px] border-l-[3px] border-white/60 rounded-bl-lg" />
-              <div className="absolute bottom-8 right-8 w-8 h-8 border-b-[3px] border-r-[3px] border-white/60 rounded-br-lg" />
-            </div>
-          </>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-white px-8 text-center">
-            <Camera className="w-16 h-16 text-gray-600 mb-5" />
-            <p className="text-gray-400 text-[15px] whitespace-pre-line leading-relaxed">{error}</p>
-          </div>
-        ) : !started ? (
-          <button onClick={startCamera} className="flex flex-col items-center justify-center h-full w-full text-white">
-            <Camera className="w-20 h-20 mb-4 opacity-60" />
-            <span className="text-[17px] font-semibold">点击打开摄像头</span>
-            <span className="text-[13px] text-gray-400 mt-2">使用后置摄像头拍摄</span>
-          </button>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin w-10 h-10 border-[3px] border-white/30 border-t-white rounded-full" />
-          </div>
+          <>
+            {/* Always mount video so ref is available when getUserMedia resolves */}
+            <video
+              ref={videoRef}
+              className={`w-full h-full object-cover ${ready ? 'block' : 'hidden'}`}
+              playsInline
+              muted
+              autoPlay
+            />
+            {ready && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-8 left-8 w-8 h-8 border-t-[3px] border-l-[3px] border-white/60 rounded-tl-lg" />
+                <div className="absolute top-8 right-8 w-8 h-8 border-t-[3px] border-r-[3px] border-white/60 rounded-tr-lg" />
+                <div className="absolute bottom-8 left-8 w-8 h-8 border-b-[3px] border-l-[3px] border-white/60 rounded-bl-lg" />
+                <div className="absolute bottom-8 right-8 w-8 h-8 border-b-[3px] border-r-[3px] border-white/60 rounded-br-lg" />
+              </div>
+            )}
+            {error ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-8 text-center">
+                <Camera className="w-16 h-16 text-gray-600 mb-5" />
+                <p className="text-gray-400 text-[15px] whitespace-pre-line leading-relaxed">{error}</p>
+              </div>
+            ) : !started ? (
+              <button onClick={startCamera} className="absolute inset-0 flex flex-col items-center justify-center w-full text-white">
+                <Camera className="w-20 h-20 mb-4 opacity-60" />
+                <span className="text-[17px] font-semibold">点击打开摄像头</span>
+                <span className="text-[13px] text-gray-400 mt-2">使用后置摄像头拍摄</span>
+              </button>
+            ) : !ready ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="animate-spin w-10 h-10 border-[3px] border-white/30 border-t-white rounded-full" />
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 
@@ -236,13 +289,20 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
         </div>
       )}
 
-      {/* Upload button in error state */}
-      {error && !captured && (
+      {/* Upload fallback */}
+      {(error || !started) && !captured && (
         <div className="flex justify-center px-6 py-4 bg-black/90" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 16px)' }}>
           <label className="bg-blue-600 text-white px-6 h-[48px] rounded-2xl text-[15px] font-semibold flex items-center gap-2 active:scale-[0.98] transition-transform">
             <ImageUp className="w-5 h-5" />
             从相册选择
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
           </label>
         </div>
       )}
