@@ -19,25 +19,15 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         toast.error(error.message.includes('Invalid') ? '邮箱或密码错误' : error.message)
+        setLoading(false)
         return
       }
 
-      const userId = data.user?.id
-      if (userId) {
-        const res = await fetch(`/api/user/profile?userId=${userId}`)
-        const { data: profile } = await res.json()
-        toast.success('登录成功')
-        if (profile && (profile.role === 'admin' || profile.role === 'super_admin')) {
-          router.push('/admin/dashboard')
-        } else {
-          router.push('/home')
-        }
-      } else {
-        router.push('/home')
-      }
+      toast.success('登录成功')
+      router.push('/home')
       router.refresh()
     } catch { toast.error('登录失败，请重试') }
     finally { setLoading(false) }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Search, FileText } from 'lucide-react'
+import { getCached, setCache } from '@/lib/cache'
 
 interface Sheet { id: string; user_id: string; title: string; subject: string; grade: string; exam_type: string; file_type: string; file_size: number; download_count: number; created_at: string; profiles: { nickname: string } }
 
@@ -13,19 +14,31 @@ export default function AdminSheetsPage() {
   const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
+    const cacheKey = `admin_sheets:${search}:${page}`
+    const cached = getCached<{ sheets: Sheet[]; total: number }>(cacheKey)
+    if (cached) {
+      setSheets(cached.sheets)
+      setTotal(cached.total)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '20' })
     if (search) params.set('search', search)
 
     const res = await fetch(`/api/admin/sheets?${params}`)
     if (res.ok) {
       const { data, count } = await res.json()
-      setSheets(data || [])
+      const list = data || []
+      setSheets(list)
       setTotal(count || 0)
+      setCache(cacheKey, { sheets: list, total: count || 0 })
     }
     setLoading(false)
   }, [search, page])
 
-  useEffect(() => { setLoading(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
   function formatSize(bytes: number) { return bytes < 1048576 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / 1048576).toFixed(1)}MB` }
 

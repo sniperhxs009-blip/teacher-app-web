@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ScanLine, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getCached, setCache } from '@/lib/cache'
 
 interface OcrRecord {
   id: string
@@ -24,12 +25,23 @@ export default function AdminOcrResultsPage() {
   const [total, setTotal] = useState(0)
 
   function load() {
+    const cacheKey = `admin_ocr:${page}`
+    const cached = getCached<{ records: OcrRecord[]; total: number }>(cacheKey)
+    if (cached) {
+      setRecords(cached.records)
+      setTotal(cached.total)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     fetch(`/api/admin/ocr-results?page=${page}&limit=20`)
       .then(r => r.json())
       .then(({ data, total: t }) => {
-        setRecords(data || [])
+        const list = data || []
+        setRecords(list)
         setTotal(t || 0)
+        setCache(cacheKey, { records: list, total: t || 0 })
         setLoading(false)
       })
   }
@@ -41,6 +53,7 @@ export default function AdminOcrResultsPage() {
     const res = await fetch(`/api/admin/ocr-results?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       toast.success('已删除')
+      try { Object.keys(sessionStorage).filter(k => k.startsWith('cache:admin_ocr:')).forEach(k => sessionStorage.removeItem(k)) } catch { /* */ }
       load()
     } else {
       const { error } = await res.json().catch(() => ({ error: '删除失败' }))

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { HardDrive, Trash2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getCached, setCache } from '@/lib/cache'
 
 interface FileRecord {
   id: string
@@ -16,9 +17,9 @@ interface FileRecord {
 }
 
 const BUCKETS = [
-  { key: 'sheets', label: '表格文件', icon: '📊' },
-  { key: 'mistakes', label: '错题图片', icon: '📷' },
-  { key: 'ocr', label: 'OCR图片', icon: '📄' },
+  { key: 'sheets', label: '表格文件' },
+  { key: 'mistakes', label: '错题图片' },
+  { key: 'ocr', label: 'OCR图片' },
 ]
 
 export default function AdminStoragePage() {
@@ -30,12 +31,23 @@ export default function AdminStoragePage() {
   const [deleting, setDeleting] = useState<string | null>(null)
 
   function load() {
+    const cacheKey = `admin_storage:${bucket}:${page}`
+    const cached = getCached<{ files: FileRecord[]; total: number }>(cacheKey)
+    if (cached) {
+      setFiles(cached.files)
+      setTotal(cached.total)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     fetch(`/api/admin/storage?bucket=${bucket}&page=${page}&limit=20`)
       .then(r => r.json())
       .then(({ data, total: t }) => {
-        setFiles(data || [])
+        const list = data || []
+        setFiles(list)
         setTotal(t || 0)
+        setCache(cacheKey, { files: list, total: t || 0 })
         setLoading(false)
       })
   }
@@ -49,6 +61,7 @@ export default function AdminStoragePage() {
     const res = await fetch(`/api/admin/storage?bucket=${file.bucket}&path=${encodeURIComponent(file.storage_path)}&id=${encodeURIComponent(file.id)}`, { method: 'DELETE' })
     if (res.ok) {
       toast.success('已删除')
+      try { Object.keys(sessionStorage).filter(k => k.startsWith('cache:admin_storage:')).forEach(k => sessionStorage.removeItem(k)) } catch { /* */ }
       load()
     } else {
       const { error } = await res.json().catch(() => ({ error: '删除失败' }))
@@ -61,7 +74,6 @@ export default function AdminStoragePage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-gray-800">文件管理</h1>
 
-      {/* Bucket tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {BUCKETS.map(b => (
           <button

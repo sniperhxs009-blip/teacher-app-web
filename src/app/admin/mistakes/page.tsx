@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Search, CheckCircle2, Circle } from 'lucide-react'
+import { getCached, setCache } from '@/lib/cache'
 
 interface Mistake { id: string; user_id: string; subject: string; wrong_reason: string; mastered: boolean; review_count: number; created_at: string; profiles: { nickname: string } }
 
@@ -13,19 +14,31 @@ export default function AdminMistakesPage() {
   const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
+    const cacheKey = `admin_mistakes:${search}:${page}`
+    const cached = getCached<{ mistakes: Mistake[]; total: number }>(cacheKey)
+    if (cached) {
+      setMistakes(cached.mistakes)
+      setTotal(cached.total)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '20' })
     if (search) params.set('search', search)
 
     const res = await fetch(`/api/admin/mistakes?${params}`)
     if (res.ok) {
       const { data, count } = await res.json()
-      setMistakes(data || [])
+      const list = data || []
+      setMistakes(list)
       setTotal(count || 0)
+      setCache(cacheKey, { mistakes: list, total: count || 0 })
     }
     setLoading(false)
   }, [search, page])
 
-  useEffect(() => { setLoading(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
   return (
     <div className="space-y-4">

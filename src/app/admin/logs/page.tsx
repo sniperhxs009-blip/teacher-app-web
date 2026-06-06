@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { ClipboardList } from 'lucide-react'
+import { getCached, setCache } from '@/lib/cache'
 
 interface Log { id: string; action: string; target_user_id: string; admin_name: string; details: Record<string, unknown>; created_at: string }
 
@@ -16,17 +17,29 @@ export default function AdminLogsPage() {
   const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
+    const cacheKey = `admin_logs:${page}`
+    const cached = getCached<{ logs: Log[]; total: number }>(cacheKey)
+    if (cached) {
+      setLogs(cached.logs)
+      setTotal(cached.total)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '30' })
     const res = await fetch(`/api/admin/logs?${params}`)
     if (res.ok) {
       const { data, count } = await res.json()
-      setLogs((data || []) as Log[])
+      const list = (data || []) as Log[]
+      setLogs(list)
       setTotal(count || 0)
+      setCache(cacheKey, { logs: list, total: count || 0 })
     }
     setLoading(false)
   }, [page])
 
-  useEffect(() => { setLoading(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
   return (
     <div className="space-y-4">

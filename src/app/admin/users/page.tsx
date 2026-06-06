@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Check, X, Search, ShieldAlert, ShieldCheck, UserX } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getCached, setCache } from '@/lib/cache'
 
 interface Profile {
   id: string; nickname: string; real_name: string; phone: string; school: string; subject: string
   role: string; status: string; register_time: string; reject_reason: string
 }
+
+interface UserData { users: Profile[]; total: number; adminName: string }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<Profile[]>([])
@@ -20,18 +22,31 @@ export default function AdminUsersPage() {
   const [adminName, setAdminName] = useState('')
 
   const load = useCallback(async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // Get admin name from API
-    const pRes = await fetch(`/api/user/profile?userId=${user.id}`)
-    if (pRes.ok) {
-      const { data: profile } = await pRes.json()
-      if (profile) setAdminName(profile.nickname || '管理员')
+    // Build cache key from params
+    const cacheKey = `admin_users:${tab}:${search}:${page}`
+    const cached = getCached<UserData>(cacheKey)
+    if (cached) {
+      setUsers(cached.users)
+      setTotal(cached.total)
+      setAdminName(cached.adminName)
+      setLoading(false)
+      return
     }
 
-    // Build query params
+    setLoading(true)
+
+    // Get admin name (cached separately)
+    const nameCacheKey = 'admin_users_name'
+    let name = getCached<string>(nameCacheKey)
+    if (!name) {
+      const pRes = await fetch('/api/user/profile?userId=' + (await getUserId()))
+      if (pRes.ok) {
+        const { data: profile } = await pRes.json()
+        if (profile) { name = profile.nickname || '管理员'; setCache(nameCacheKey, name) }
+      }
+    }
+    setAdminName(name || '管理员')
+
     const params = new URLSearchParams({ page: String(page), limit: '20' })
     if (tab === 'pending') params.set('status', 'pending')
     if (search) params.set('search', search)
@@ -39,13 +54,15 @@ export default function AdminUsersPage() {
     const res = await fetch(`/api/admin/users?${params}`)
     if (res.ok) {
       const { data, total: t } = await res.json()
-      setUsers((data || []) as Profile[])
+      const usersList = (data || []) as Profile[]
+      setUsers(usersList)
       setTotal(t || 0)
+      setCache(cacheKey, { users: usersList, total: t || 0, adminName: name || '管理员' })
     }
     setLoading(false)
   }, [tab, search, page])
 
-  useEffect(() => { setLoading(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
   async function handleAction(userId: string, action: string, reason?: string) {
     try {
@@ -56,6 +73,8 @@ export default function AdminUsersPage() {
       })
       if (res.ok) {
         toast.success(action === 'approved' ? '已通过' : action === 'rejected' ? '已拒绝' : action === 'frozen' ? '已冻结' : '操作成功')
+        // Invalidate cache for this tab
+        try { Object.keys(sessionStorage).filter(k => k.startsWith('cache:admin_users:')).forEach(k => sessionStorage.removeItem(k)) } catch { /* */ }
         load()
       } else {
         toast.error('操作失败')
@@ -70,7 +89,6 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-gray-800">用户管理</h1>
 
-      {/* Tabs */}
       <div className="flex gap-2">
         {(['pending', 'all'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setPage(1) }}
@@ -82,7 +100,6 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="w-[18px] h-[18px] text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input type="text" placeholder="搜索用户..." value={search}
@@ -155,4 +172,11 @@ export default function AdminUsersPage() {
       )}
     </div>
   )
+}
+
+async function getUserId(): Promise<string> {
+  const { createClient } = await import('@/lib/supabase/client')
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id || ''
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Users, Clock, FileSpreadsheet, BookOpen, CheckCircle2, ScanLine } from 'lucide-react'
+import { getCached, setCache } from '@/lib/cache'
 
 interface Stats {
   userCount: number
@@ -12,11 +13,18 @@ interface Stats {
   ocrCount: number
 }
 
+const CACHE_KEY = 'admin_stats'
+
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null)
+  const [stats, setStats] = useState<Stats | null>(() => getCached<Stats>(CACHE_KEY))
 
   useEffect(() => {
-    fetch('/api/admin/stats').then(r => r.json()).then(setStats)
+    fetch('/api/admin/stats')
+      .then(r => r.json())
+      .then(data => {
+        setStats(data)
+        setCache(CACHE_KEY, data)
+      })
   }, [])
 
   if (!stats) {

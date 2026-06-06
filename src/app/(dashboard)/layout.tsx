@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Home, FileSpreadsheet, BookOpen, Camera, User } from 'lucide-react'
 
@@ -14,16 +13,52 @@ const tabs = [
   { href: '/profile', label: '我的', icon: User },
 ]
 
+function getCached(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!sessionStorage.getItem('user_auth')
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !getCached())
+  const [checked, setChecked] = useState(false)
 
+  // Prefetch on mount
   useEffect(() => {
+    tabs.forEach(t => router.prefetch(t.href))
+  }, [router])
+
+  // Auth check — runs once
+  useEffect(() => {
+    if (checked) return
+    setChecked(true)
+
     async function checkAuth() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+
+      // Try cached profile
+      const cachedProfile = (() => {
+        try {
+          const raw = sessionStorage.getItem('user_profile')
+          return raw ? JSON.parse(raw) : null
+        } catch { return null }
+      })()
+
+      if (cachedProfile) {
+        if (cachedProfile.role === 'admin' || cachedProfile.role === 'super_admin') {
+          router.push('/admin/dashboard'); return
+        }
+        if (cachedProfile.status === 'frozen' || cachedProfile.status === 'rejected' || cachedProfile.status === 'pending') {
+          router.push('/pending'); return
+        }
+        sessionStorage.setItem('user_auth', '1')
+        setLoading(false)
+        return
+      }
+
       const res = await fetch(`/api/user/profile?userId=${user.id}`)
       if (res.ok) {
         const { data: profile } = await res.json()
@@ -34,13 +69,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           if (profile.status === 'frozen' || profile.status === 'rejected' || profile.status === 'pending') {
             router.push('/pending'); return
           }
+          try { sessionStorage.setItem('user_profile', JSON.stringify(profile)) } catch { /* */ }
+          sessionStorage.setItem('user_auth', '1')
         }
       }
       setLoading(false)
-      // Prefetch all tabs for instant navigation
-      tabs.forEach(t => router.prefetch(t.href))
     }
     checkAuth()
+  }, [checked, router])
+
+  const navigate = useCallback((href: string) => {
+    router.push(href)
   }, [router])
 
   if (loading) {
@@ -56,33 +95,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-gray-100">
-      {/* Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="mx-auto w-full max-w-lg px-4 pt-6 pb-28">
           {children}
         </div>
       </div>
 
-      {/* Floating Tab Bar */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-lg">
-        <nav className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_4px_32px_rgba(0,0,0,0.08)] border border-gray-100/60 px-2 py-1.5">
+        <nav className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_4px_32px_rgba(0,0,0,0.08)] border border-gray-100/60 px-2 py-1.5" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="flex items-center justify-around h-14">
             {tabs.map(tab => {
               const Icon = tab.icon
               const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
               return (
-                <Link
+                <button
                   key={tab.href}
-                  href={tab.href}
+                  onClick={() => navigate(tab.href)}
                   className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full rounded-2xl transition-all duration-200 ${
                     active
                       ? 'text-indigo-600 bg-indigo-50/80'
                       : 'text-gray-400 hover:text-gray-600'
                   }`}
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <Icon className="w-[22px] h-[22px] mb-0.5" strokeWidth={active ? 2.5 : 1.75} />
                   <span className="text-[10px] leading-none font-semibold tracking-wide">{tab.label}</span>
-                </Link>
+                </button>
               )
             })}
           </div>

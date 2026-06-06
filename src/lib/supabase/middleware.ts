@@ -21,79 +21,28 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  const serviceClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } },
-  )
-
   const { data: { user } } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
   const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/pending'
   const isApiRoute = pathname.startsWith('/api/')
-  const isAdminRoute = pathname.startsWith('/admin')
-  const isDashboardRoute = !isAuthPage && !isApiRoute && !isAdminRoute
 
+  // API routes handle their own auth — pass through
   if (isApiRoute) return supabaseResponse
 
+  // No session → redirect to login
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Helper to fetch full profile (role + status) when needed
-  async function getFullProfile(userId: string) {
-    const { data } = await serviceClient
-      .from('profiles')
-      .select('role, status')
-      .eq('id', userId)
-      .single()
-    return data as { role: string; status: string } | null
-  }
-
-  if (user && isAuthPage && pathname !== '/pending') {
-    const profile = await getFullProfile(user.id)
-    if (!profile) return supabaseResponse
-
+  // Has session but on login/register → redirect to home
+  // (Client-side layouts handle admin/pending/frozen redirects)
+  if (user && (pathname === '/login' || pathname === '/register')) {
     const url = request.nextUrl.clone()
-    if (profile.role === 'admin' || profile.role === 'super_admin') {
-      url.pathname = '/admin/dashboard'
-    } else {
-      url.pathname = '/home'
-    }
+    url.pathname = '/home'
     return NextResponse.redirect(url)
-  }
-
-  if (user && pathname === '/pending') {
-    const profile = await getFullProfile(user.id)
-    // Only redirect approved users away from /pending
-    if (profile && profile.status === 'approved') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/home'
-      return NextResponse.redirect(url)
-    }
-    return supabaseResponse
-  }
-
-  if (user && isAdminRoute) {
-    const profile = await getFullProfile(user.id)
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/home'
-      return NextResponse.redirect(url)
-    }
-  }
-
-  // Block frozen/rejected/pending users from dashboard routes
-  if (user && isDashboardRoute) {
-    const profile = await getFullProfile(user.id)
-    if (profile && (profile.status === 'frozen' || profile.status === 'rejected' || profile.status === 'pending')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/pending'
-      return NextResponse.redirect(url)
-    }
   }
 
   return supabaseResponse

@@ -32,11 +32,11 @@ export default function RegisterPage() {
 
       const userId = data.user?.id
       if (userId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.from('profiles') as any).update({
+        // Fire-and-forget: update profile in background, navigate immediately
+        supabase.from('profiles').update({
           status: 'approved',
           approve_time: new Date().toISOString(),
-        }).eq('id', userId)
+        }).eq('id', userId).then(() => {}).catch(() => {})
       }
 
       toast.success('注册成功！')
