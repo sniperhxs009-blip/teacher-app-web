@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -28,21 +28,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(() => !getCache())
   const [authorized, setAuthorized] = useState(() => getCache())
   const checkedRef = useRef(false)
+  const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    adminTabs.forEach(t => router.prefetch(t.href))
+  }, [router])
 
   useEffect(() => {
     if (checkedRef.current) return
     checkedRef.current = true
+    if (getCache()) { setLoading(false); return }
 
     async function check() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      if (!user) { router.replace('/login'); return }
 
       const res = await fetch(`/api/user/profile?userId=${user.id}`)
       if (res.ok) {
         const { data: profile } = await res.json()
         if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-          router.push('/home'); return
+          router.replace('/home'); return
         }
         sessionStorage.setItem('admin_auth', '1')
         setAuthorized(true)
@@ -52,23 +58,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     check()
   }, [router])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      adminTabs.forEach(t => router.prefetch(t.href))
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [router])
-
   async function handleLogout() {
     sessionStorage.removeItem('admin_auth')
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    router.replace('/login')
   }
 
   if (loading) {
     return (
-      <div className="min-h-full flex items-center justify-center bg-[#f5f5f7]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7]">
         <div className="w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -77,15 +76,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!authorized) return null
 
   return (
-    <div className="min-h-full flex flex-col bg-[#f5f5f7]">
+    <div className="min-h-screen flex flex-col bg-[#f5f5f7]">
+      {isPending && (
+        <div className="fixed top-0 left-0 right-0 z-[60] h-0.5 bg-blue-600 animate-pulse" />
+      )}
+
       <div className="flex-shrink-0 bg-white shadow-sm">
         <div className="flex items-center h-[48px] px-4 gap-3">
-          <Link href="/home" className="w-[36px] h-[36px] flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-lg transition-colors">
+          <Link href="/home" prefetch className="w-[36px] h-[36px] flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-[16px] font-bold text-gray-800 flex-1">管理后台</h1>
           <button onClick={handleLogout}
-            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors">
+            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg">
             <LogOut className="w-[18px] h-[18px]" />
           </button>
         </div>
@@ -97,16 +100,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-gray-100" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="flex items-center justify-around h-[56px]">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="flex items-stretch h-[52px]">
           {adminTabs.map(tab => {
             const Icon = tab.icon
             const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
             return (
-              <button
+              <Link
                 key={tab.href}
-                onClick={() => { if (!active) router.push(tab.href) }}
-                className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full select-none ${
+                href={tab.href}
+                prefetch
+                onClick={(e) => {
+                  if (active) { e.preventDefault(); return }
+                  startTransition(() => {})
+                }}
+                className={`relative flex flex-col items-center justify-center min-w-0 flex-1 select-none active:opacity-60 ${
                   active ? 'text-blue-600' : 'text-gray-400'
                 }`}
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
@@ -114,9 +122,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {active && (
                   <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-blue-600 rounded-full" />
                 )}
-                <Icon className="w-[20px] h-[20px] mb-0.5" strokeWidth={active ? 2.5 : 2} />
-                <span className="text-[10px] leading-none font-medium">{tab.label}</span>
-              </button>
+                <Icon className="w-[18px] h-[18px] mb-0.5" strokeWidth={active ? 2.5 : 2} />
+                <span className="text-[9px] leading-none font-medium">{tab.label}</span>
+              </Link>
             )
           })}
         </div>

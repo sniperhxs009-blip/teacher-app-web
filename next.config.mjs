@@ -1,8 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // @supabase/ssr + @supabase/supabase-js type inference bug with insert/update
     ignoreBuildErrors: true,
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
+  compress: true,
+  poweredByHeader: false,
+  images: {
+    formats: ['image/webp'],
   },
 }
 

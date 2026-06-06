@@ -1,4 +1,4 @@
-const TTL = 30000 // 30 seconds
+const TTL = 120000 // 2 minutes
 
 export function getCached<T>(key: string): T | null {
   try {

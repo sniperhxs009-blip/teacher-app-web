@@ -133,12 +133,16 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
 
     const video = videoRef.current
     const canvas = canvasRef.current
-    canvas.width = video.videoWidth || 1920
-    canvas.height = video.videoHeight || 1080
+    const maxW = 960
+    let w = video.videoWidth || 1280
+    let h = video.videoHeight || 720
+    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+    canvas.width = w
+    canvas.height = h
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, 0, 0, w, h)
     canvas.toBlob(blob => {
       if (!blob) return
       const url = URL.createObjectURL(blob)
@@ -189,10 +193,13 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     const img = new Image()
     img.onload = () => {
       const canvas = canvasRef.current!
-      canvas.width = img.width
-      canvas.height = img.height
+      const maxW = 960
+      let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      canvas.width = w
+      canvas.height = h
       const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
+      ctx.drawImage(img, 0, 0, w, h)
       canvas.toBlob(blob => {
         if (!blob) return
         onCapture(blob, mode)

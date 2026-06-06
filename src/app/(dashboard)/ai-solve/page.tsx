@@ -1,10 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle, BookOpen, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { compressImageBlob, blobToBase64 } from '@/lib/compress-image'
 
 const CameraCapture = dynamic(() => import('@/components/camera/CameraCapture'), { ssr: false })
 
@@ -12,10 +13,10 @@ interface SolveResult {
   id: string
   image_url: string
   subject: string
-  knowledge_point: string
+  knowledge_points: string[]
   analysis: string
-  solution_steps: string
-  correct_answer: string
+  steps: string[]
+  answer: string
 }
 
 interface SimilarQuestion {
@@ -34,18 +35,6 @@ async function uploadImage(file: File) {
   return data as { publicUrl: string; storagePath: string }
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string
-      resolve(dataUrl.split(',')[1])
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
-
 export default function AiSolvePage() {
   const router = useRouter()
   const [mode, setMode] = useState<'camera' | 'upload' | null>(null)
@@ -58,6 +47,17 @@ export default function AiSolvePage() {
   const [expandedIdx, setExpandedIdx] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('ai_solve_results')
+      if (raw) {
+        sessionStorage.removeItem('ai_solve_results')
+        const list = JSON.parse(raw) as SolveResult[]
+        if (list.length > 0) setResults(list)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
   async function processImage(blob: Blob) {
     setMode(null)
     setSolving(true)
@@ -65,21 +65,27 @@ export default function AiSolvePage() {
     setProcessingMsg('正在上传图片...')
 
     try {
+      setProcessingMsg('正在压缩图片...')
+      const compressed = await compressImageBlob(blob, 960, 0.45)
       const fileName = `${Date.now()}.jpg`
-      const file = new File([blob], fileName, { type: 'image/jpeg' })
+      const file = new File([compressed], fileName, { type: 'image/jpeg' })
 
-      setProcessingMsg('正在上传图片...')
+      setProcessingMsg('正在上传...')
       const [{ publicUrl, storagePath }, imageBase64] = await Promise.all([
         uploadImage(file),
-        blobToBase64(blob),
+        blobToBase64(compressed),
       ])
 
-      setProcessingMsg('AI正在分析题目...')
+      setProcessingMsg('AI快速解题中...')
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 90000)
       const res = await fetch('/api/ai/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl: publicUrl, storagePath, imageBase64 }),
+        signal: controller.signal,
       })
+      clearTimeout(timer)
 
       if (res.ok) {
         const { data } = await res.json()
@@ -91,7 +97,9 @@ export default function AiSolvePage() {
         setError(err.error || 'AI服务暂不可用')
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '操作失败，请重试'
+      const msg = err instanceof Error
+        ? (err.name === 'AbortError' ? 'AI分析超时，请拍近一点或只拍部分题目' : err.message)
+        : '操作失败，请重试'
       setError(msg)
     } finally {
       setSolving(false)
@@ -110,8 +118,8 @@ export default function AiSolvePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject: current.subject,
-          knowledgePoints: current.knowledge_point?.split(',').filter(Boolean) || [],
-          answer: current.correct_answer,
+          knowledgePoints: current.knowledge_points || [],
+          answer: current.answer,
           existingQuestions: existingTexts,
           count: 3,
         }),
@@ -137,12 +145,12 @@ export default function AiSolvePage() {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const maxW = 400
+        const maxW = 960
         let w = img.width, h = img.height
         if (w > maxW) { h = h * maxW / w; w = maxW }
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.3)
+        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.45)
       }
       img.src = reader.result as string
     }
@@ -214,7 +222,7 @@ export default function AiSolvePage() {
           {(() => {
             const result = results[expandedIdx]
             if (!result) return null
-            const steps = result.solution_steps?.split('\n').filter(Boolean) || []
+            const steps = result.steps || []
 
             return (
               <div className="space-y-4">
@@ -226,7 +234,7 @@ export default function AiSolvePage() {
 
                 <div className="flex flex-wrap gap-1.5">
                   <span className="tag bg-violet-50 text-violet-600">{result.subject}</span>
-                  {result.knowledge_point?.split(',').filter(Boolean).map((p: string) => (
+                  {result.knowledge_points?.map((p: string) => (
                     <span key={p} className="tag bg-blue-50 text-blue-600">{p.trim()}</span>
                   ))}
                 </div>
@@ -267,7 +275,7 @@ export default function AiSolvePage() {
                     </div>
                     答案
                   </h3>
-                  <p className="text-lg font-extrabold text-emerald-700">{result.correct_answer || '暂无答案'}</p>
+                  <p className="text-lg font-extrabold text-emerald-700">{result.answer || '暂无答案'}</p>
                 </div>
 
                 {similarQuestions.length === 0 && (
