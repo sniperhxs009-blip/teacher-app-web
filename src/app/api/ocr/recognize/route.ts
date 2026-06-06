@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceClient()
     const userId = auth.user.id
 
+    // 创建OCR记录
     let ocrId = body.ocrId
     if (!ocrId) {
       const { data: newOcr, error: createErr } = await supabase.from('ocr_results').insert({
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
       ocrId = newOcr.id
     }
 
+    // 下载图片转base64
     const imageRes = await fetch(imageUrl)
     if (!imageRes.ok) {
       return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
@@ -37,41 +39,40 @@ export async function POST(req: NextRequest) {
 
     const { recognizeTable, recognizeText } = await import('@/lib/ai/baidu-ocr')
 
-    let recognizedData: { tables: Array<{ cells: Array<Array<{ text: string }>> }>; text?: string[] }
+    let grid: string[][]
     let excelBase64: string | undefined
 
+    // 优先表格识别，失败降级到通用文字识别
     try {
-      const tableResult = await recognizeTable(imageBase64)
-      recognizedData = { tables: [{ cells: tableResult.cells }] }
-      excelBase64 = tableResult.excelBase64
-
-      if (excelBase64) {
-        const excelBuffer = Buffer.from(excelBase64, 'base64')
-        const excelPath = `${userId}/ocr-${ocrId}.xlsx`
-        await supabase.storage.from('ocr').upload(excelPath, excelBuffer, {
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          upsert: true,
-        })
-        const { data: excelUrlData } = supabase.storage.from('ocr').getPublicUrl(excelPath)
-
-        await supabase.from('ocr_results').update({
-          recognized_data: recognizedData as Record<string, unknown>,
-          excel_file: excelUrlData.publicUrl,
-          excel_storage_path: excelPath,
-          status: 'pending_review',
-          updated_at: new Date().toISOString(),
-        }).eq('id', ocrId)
-
-        return NextResponse.json({ data: { id: ocrId } })
-      }
-    } catch (tableErr: unknown) {
-      console.error('Table OCR error, falling back to text:', tableErr)
+      const result = await recognizeTable(imageBase64)
+      grid = result.grid
+      excelBase64 = result.excelBase64
+    } catch {
       const textResult = await recognizeText(imageBase64)
-      recognizedData = { tables: [], text: textResult.words }
+      // 降级：每行一个词
+      grid = textResult.words.map(w => [w])
     }
 
+    // 上传Excel到Supabase Storage
+    let excelUrl = ''
+    if (excelBase64) {
+      const excelBuffer = Buffer.from(excelBase64, 'base64')
+      const excelPath = `${userId}/ocr-${ocrId}.xlsx`
+      await supabase.storage.from('ocr').upload(excelPath, excelBuffer, {
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        upsert: true,
+      })
+      const { data: urlData } = supabase.storage.from('ocr').getPublicUrl(excelPath)
+      excelUrl = urlData.publicUrl
+    }
+
+    // 更新记录：grid作为二维数组存储（和小程序一致）
     await supabase.from('ocr_results').update({
-      recognized_data: recognizedData as Record<string, unknown>,
+      recognized_data: grid,               // 纯二维数组
+      excel_file: excelUrl || null,
+      excel_storage_path: excelUrl ? `${userId}/ocr-${ocrId}.xlsx` : null,
+      row_count: grid.length,
+      col_count: grid[0]?.length || 0,
       status: 'pending_review',
       updated_at: new Date().toISOString(),
     }).eq('id', ocrId)
