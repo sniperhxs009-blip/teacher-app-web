@@ -24,6 +24,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     async function check() {
+      // Use cached result for instant subsequent loads
+      const cached = sessionStorage.getItem('admin_auth')
+      if (cached) {
+        setAuthorized(true)
+        setLoading(false)
+        adminTabs.forEach(t => router.prefetch(t.href))
+        return
+      }
+
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
@@ -34,7 +43,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
           router.push('/home'); return
         }
+        sessionStorage.setItem('admin_auth', '1')
         setAuthorized(true)
+        adminTabs.forEach(t => router.prefetch(t.href))
       }
       setLoading(false)
     }
