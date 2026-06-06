@@ -11,7 +11,7 @@ interface CameraCaptureProps {
 
 async function getCameraStream(facingMode: 'environment' | 'user'): Promise<MediaStream> {
   const attempts: MediaStreamConstraints[] = [
-    { video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+    { video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
     { video: { facingMode }, audio: false },
     { video: true, audio: false },
   ]
@@ -144,7 +144,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       const url = URL.createObjectURL(blob)
       setCaptured(url)
       stopCamera()
-    }, 'image/jpeg', 0.5)
+    }, 'image/jpeg', 0.4)
   }
 
   function confirmPhoto() {
@@ -152,7 +152,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     canvasRef.current.toBlob(blob => {
       if (!blob) return
       onCapture(blob, mode)
-    }, 'image/jpeg', 0.5)
+    }, 'image/jpeg', 0.4)
   }
 
   function retakePhoto() {
@@ -196,7 +196,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       canvas.toBlob(blob => {
         if (!blob) return
         onCapture(blob, mode)
-      }, 'image/jpeg', 0.5)
+      }, 'image/jpeg', 0.4)
     }
     img.src = captured!
   }

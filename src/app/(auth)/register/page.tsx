@@ -9,21 +9,21 @@ import { UserPlus } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ nickname: '', email: '', phone: '', password: '', confirm: '' })
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
-
-  function update(k: keyof typeof form, v: string) { setForm(p => ({ ...p, [k]: v })) }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
-    if (form.password !== form.confirm) { toast.error('两次密码不一致'); return }
-    if (form.password.length < 6) { toast.error('密码至少6位'); return }
+    if (password !== confirm) { toast.error('两次密码不一致'); return }
+    if (password.length < 6) { toast.error('密码至少6位'); return }
     setLoading(true)
     try {
       const supabase = createClient()
       const { data, error } = await supabase.auth.signUp({
-        email: form.email, password: form.password,
-        options: { data: { nickname: form.nickname, phone: form.phone } },
+        email,
+        password,
       })
       if (error) {
         toast.error(error.message.includes('already') ? '该邮箱已被注册' : error.message)
@@ -58,11 +58,12 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleRegister} className="space-y-3">
-          <input type="text" required value={form.nickname} onChange={e => update('nickname', e.target.value)} className="input-base" placeholder="昵称" />
-          <input type="email" required value={form.email} onChange={e => update('email', e.target.value)} className="input-base" placeholder="邮箱" inputMode="email" autoComplete="email" />
-          <input type="tel" required value={form.phone} onChange={e => update('phone', e.target.value)} className="input-base" placeholder="手机号" maxLength={11} />
-          <input type="password" required value={form.password} onChange={e => update('password', e.target.value)} className="input-base" placeholder="密码（至少6位）" autoComplete="new-password" />
-          <input type="password" required value={form.confirm} onChange={e => update('confirm', e.target.value)} className="input-base" placeholder="确认密码" autoComplete="new-password" />
+          <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            className="input-base" placeholder="邮箱" inputMode="email" autoComplete="email" autoFocus />
+          <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+            className="input-base" placeholder="密码（至少6位）" autoComplete="new-password" />
+          <input type="password" required value={confirm} onChange={e => setConfirm(e.target.value)}
+            className="input-base" placeholder="确认密码" autoComplete="new-password" />
           <button type="submit" disabled={loading}
             className="btn-primary flex items-center justify-center gap-2 mt-1">
             <UserPlus className="w-[18px] h-[18px]" />

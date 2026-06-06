@@ -9,18 +9,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { imageUrl, storagePath } = body
+    const { imageUrl, storagePath, imageBase64: inputBase64 } = body
 
     if (!imageUrl) {
       return NextResponse.json({ error: '缺少图片参数' }, { status: 400 })
     }
 
-    const imageRes = await fetch(imageUrl)
-    if (!imageRes.ok) {
-      return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+    let imageBuffer: Buffer
+    if (inputBase64) {
+      imageBuffer = Buffer.from(inputBase64, 'base64')
+    } else {
+      const imageRes = await fetch(imageUrl)
+      if (!imageRes.ok) {
+        return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+      }
+      imageBuffer = Buffer.from(await imageRes.arrayBuffer())
     }
-
-    let imageBuffer = Buffer.from(await imageRes.arrayBuffer())
 
     try {
       imageBuffer = await sharp(imageBuffer)

@@ -32,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
       setLoading(false)
+      // Prefetch all tabs for instant navigation
+      tabs.forEach(t => router.prefetch(t.href))
     }
     checkAuth()
   }, [router])

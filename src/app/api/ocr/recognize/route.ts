@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { imageUrl, storagePath } = body
+    const { imageUrl, storagePath, imageBase64: inputBase64 } = body
 
     if (!imageUrl) {
       return NextResponse.json({ error: '缺少图片参数' }, { status: 400 })
@@ -29,13 +29,17 @@ export async function POST(req: NextRequest) {
       ocrId = newOcr.id
     }
 
-    // 下载图片转base64
-    const imageRes = await fetch(imageUrl)
-    if (!imageRes.ok) {
-      return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+    // 优先使用客户端传来的base64，否则下载图片
+    let imageBase64: string
+    if (inputBase64) {
+      imageBase64 = inputBase64
+    } else {
+      const imageRes = await fetch(imageUrl)
+      if (!imageRes.ok) {
+        return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+      }
+      imageBase64 = Buffer.from(await imageRes.arrayBuffer()).toString('base64')
     }
-    const imageBuffer = Buffer.from(await imageRes.arrayBuffer())
-    const imageBase64 = imageBuffer.toString('base64')
 
     const { recognizeTable, recognizeText } = await import('@/lib/ai/baidu-ocr')
 

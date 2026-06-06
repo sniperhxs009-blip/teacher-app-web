@@ -32,6 +32,18 @@ async function uploadImage(file: File) {
   return data as { publicUrl: string; storagePath: string }
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string
+      resolve(dataUrl.split(',')[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
 export default function AiSolvePage() {
   const router = useRouter()
   const [mode, setMode] = useState<'camera' | 'upload' | null>(null)
@@ -50,13 +62,15 @@ export default function AiSolvePage() {
       const fileName = `${Date.now()}.jpg`
       const file = new File([blob], fileName, { type: 'image/jpeg' })
 
-      const { publicUrl, storagePath } = await uploadImage(file)
-      toast.success('图片已上传，AI正在分析...')
+      const [{ publicUrl, storagePath }, imageBase64] = await Promise.all([
+        uploadImage(file),
+        blobToBase64(blob),
+      ])
 
       const res = await fetch('/api/ai/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
+        body: JSON.stringify({ imageUrl: publicUrl, storagePath, imageBase64 }),
       })
 
       if (res.ok) {
@@ -112,12 +126,12 @@ export default function AiSolvePage() {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const maxW = 800
+        const maxW = 600
         let w = img.width, h = img.height
         if (w > maxW) { h = h * maxW / w; w = maxW }
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.5)
+        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.4)
       }
       img.src = reader.result as string
     }

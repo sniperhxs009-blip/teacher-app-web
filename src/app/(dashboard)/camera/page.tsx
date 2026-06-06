@@ -18,50 +18,77 @@ async function uploadImage(file: File, bucket: 'ocr' | 'mistakes' | 'sheets') {
   return data as { publicUrl: string; storagePath: string }
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string
+      resolve(dataUrl.split(',')[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
 export default function CameraPage() {
   const router = useRouter()
   const [mode, setMode] = useState<CameraMode>(null)
   const [capturing, setCapturing] = useState(false)
+  const [processingMsg, setProcessingMsg] = useState('')
 
   async function handleCapture(blob: Blob, captureMode: string) {
     setCapturing(true)
+    setProcessingMsg('正在上传图片...')
     try {
       const fileName = `${Date.now()}.jpg`
       const file = new File([blob], fileName, { type: 'image/jpeg' })
 
       if (captureMode === 'ocr') {
-        const { publicUrl, storagePath } = await uploadImage(file, 'ocr')
-        toast.success('图片已上传，正在识别...')
+        const [{ publicUrl, storagePath }, imageBase64] = await Promise.all([
+          uploadImage(file, 'ocr'),
+          blobToBase64(blob),
+        ])
+        setProcessingMsg('正在识别表格...')
 
         const res = await fetch('/api/ocr/recognize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
+          body: JSON.stringify({ imageUrl: publicUrl, storagePath, imageBase64 }),
         })
         if (res.ok) {
           const { data: result } = await res.json()
+          toast.success('识别完成')
           router.push(`/ocr-result?id=${result.id}`)
         } else {
           const err = await res.json().catch(() => ({}))
           toast.error(err.error || 'OCR识别失败，请重试')
+          setCapturing(false)
+          setMode(null)
         }
       } else if (captureMode === 'solve') {
-        const { publicUrl, storagePath } = await uploadImage(file, 'mistakes')
-        toast.success('图片已上传，AI正在解题...')
+        const [{ publicUrl, storagePath }, imageBase64] = await Promise.all([
+          uploadImage(file, 'mistakes'),
+          blobToBase64(blob),
+        ])
+        setProcessingMsg('AI正在解题...')
 
         const res = await fetch('/api/ai/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
+          body: JSON.stringify({ imageUrl: publicUrl, storagePath, imageBase64 }),
         })
         if (res.ok) {
           const { data: mistake } = await res.json()
+          toast.success('解题完成')
           router.push(`/ai-solve/result?mistakeId=${mistake.id}`)
         } else {
           const err = await res.json().catch(() => ({}))
           toast.error(err.error || 'AI解题失败，请重试')
+          setCapturing(false)
+          setMode(null)
         }
       } else if (captureMode === 'table') {
+        setProcessingMsg('正在保存...')
         const formData = new FormData()
         formData.append('file', file)
         formData.append('title', `拍照表格 ${new Date().toLocaleDateString('zh-CN')}`)
@@ -73,15 +100,15 @@ export default function CameraPage() {
         } else {
           const err = await res.json().catch(() => ({}))
           toast.error(err.error || '上传失败，请重试')
+          setCapturing(false)
+          setMode(null)
         }
       }
-
-      setMode(null)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '操作失败，请重试'
       toast.error(msg)
-    } finally {
       setCapturing(false)
+      setMode(null)
     }
   }
 
@@ -91,7 +118,7 @@ export default function CameraPage() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-white rounded-3xl px-8 py-7 text-center shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
             <div className="w-12 h-12 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-5" />
-            <p className="text-gray-600 text-base font-bold">处理中...</p>
+            <p className="text-gray-600 text-base font-bold">{processingMsg}</p>
             <p className="text-sm text-gray-400 mt-1 font-medium">请稍候</p>
           </div>
         </div>
@@ -106,9 +133,9 @@ export default function CameraPage() {
 
         <div className="space-y-3">
           {[
-            { mode: 'ocr' as const, icon: FileSearch, color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-600', label: '拍照识别', desc: '拍摄试卷表格，自动识别为电子表格' },
-            { mode: 'solve' as const, icon: Lightbulb, color: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', label: '拍照解题', desc: '拍摄题目，AI智能分析解答' },
-            { mode: 'table' as const, icon: FileSpreadsheet, color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50', text: 'text-emerald-600', label: '拍照上传表格', desc: '拍摄后直接保存到表格库' },
+            { mode: 'ocr' as const, icon: FileSearch, color: 'from-blue-500 to-cyan-500', label: '拍照识别', desc: '拍摄试卷表格，自动识别为电子表格' },
+            { mode: 'solve' as const, icon: Lightbulb, color: 'from-violet-500 to-purple-600', label: '拍照解题', desc: '拍摄题目，AI智能分析解答' },
+            { mode: 'table' as const, icon: FileSpreadsheet, color: 'from-emerald-500 to-teal-500', label: '拍照上传表格', desc: '拍摄后直接保存到表格库' },
           ].map(item => {
             const Icon = item.icon
             return (
