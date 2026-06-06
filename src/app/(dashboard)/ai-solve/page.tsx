@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CameraCapture from '@/components/camera/CameraCapture'
-import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle, BookOpen, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface SolveResult {
@@ -14,6 +14,12 @@ interface SolveResult {
   analysis: string
   steps: string[]
   answer: string
+}
+
+interface SimilarQuestion {
+  question: string
+  answer: string
+  hint: string
 }
 
 async function uploadImage(file: File) {
@@ -32,6 +38,8 @@ export default function AiSolvePage() {
   const [solving, setSolving] = useState(false)
   const [result, setResult] = useState<SolveResult | null>(null)
   const [error, setError] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestion[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function processImage(blob: Blob) {
@@ -65,6 +73,33 @@ export default function AiSolvePage() {
     } finally {
       setSolving(false)
     }
+  }
+
+  async function generateSimilar() {
+    if (!result) return
+    setGenerating(true)
+    try {
+      const existingTexts = similarQuestions.map(q => q.question)
+      const res = await fetch('/api/ai/similar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: result.subject,
+          knowledgePoints: result.knowledge_points,
+          answer: result.answer,
+          existingQuestions: existingTexts,
+          count: 3,
+        }),
+      })
+      if (res.ok) {
+        const { data } = await res.json()
+        setSimilarQuestions(prev => [...prev, ...data.questions])
+        toast.success(`已生成 ${data.questions.length} 道同类题`)
+      } else {
+        toast.error('生成同类题失败')
+      }
+    } catch { toast.error('生成同类题失败') }
+    finally { setGenerating(false) }
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -184,12 +219,44 @@ export default function AiSolvePage() {
             <p className="text-lg font-bold text-green-700">{result.answer || '暂无答案'}</p>
           </div>
 
+          {/* Similar questions */}
+          {similarQuestions.length === 0 && (
+            <button onClick={generateSimilar} disabled={generating}
+              className="w-full h-[46px] bg-purple-50 text-purple-600 rounded-2xl text-[14px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform">
+              {generating ? '生成中...' : '推荐相似题型'}
+            </button>
+          )}
+
+          {similarQuestions.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-[14px] font-bold text-gray-800 flex items-center gap-2">
+                <BookOpen className="w-[16px] h-[16px] text-purple-500" /> 相似题型推荐 ({similarQuestions.length}道)
+              </h3>
+              {similarQuestions.map((q, i) => (
+                <div key={i} className="bg-purple-50/50 rounded-2xl p-4">
+                  <p className="text-[12px] font-semibold text-purple-600">题目 {i + 1}</p>
+                  <p className="text-[14px] text-gray-700 mt-1.5">{q.question}</p>
+                  <details className="mt-3">
+                    <summary className="text-[13px] text-purple-600 font-medium cursor-pointer">查看答案</summary>
+                    <p className="text-[14px] text-green-700 mt-2 font-medium">{q.answer}</p>
+                    <p className="text-[12px] text-gray-400 mt-1">提示：{q.hint}</p>
+                  </details>
+                </div>
+              ))}
+              <button onClick={generateSimilar} disabled={generating}
+                className="w-full h-[44px] bg-purple-100 text-purple-700 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 transition-transform">
+                <RefreshCw className={`w-[14px] h-[14px] ${generating ? 'animate-spin' : ''}`} />
+                {generating ? '生成中...' : '继续生成更多相似题'}
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-3">
             <button onClick={saveToMistakes}
               className="flex-1 h-[50px] bg-orange-600 text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] transition-transform shadow-lg shadow-orange-200/50">
               查看错题本
             </button>
-            <button onClick={() => { setResult(null); setError('') }}
+            <button onClick={() => { setResult(null); setError(''); setSimilarQuestions([]) }}
               className="w-[50px] h-[50px] bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center active:bg-purple-100 transition-colors">
               <Camera className="w-[20px] h-[20px]" />
             </button>

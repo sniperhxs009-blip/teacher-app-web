@@ -7,10 +7,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { subject, knowledgePoints, answer } = body
+    const { subject, knowledgePoints, answer, existingQuestions, count } = body
 
     const { generateSimilarQuestions } = await import('@/lib/ai/deepseek')
-    const result = await generateSimilarQuestions(subject, knowledgePoints, answer)
+    const result = await generateSimilarQuestions(
+      subject,
+      knowledgePoints,
+      answer,
+      existingQuestions || [],
+      count || 3,
+    )
 
     return NextResponse.json({ data: result })
   } catch (err: unknown) {

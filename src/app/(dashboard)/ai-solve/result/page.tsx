@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Lightbulb, ListChecks, CheckCircle, BookOpen } from 'lucide-react'
+import { Lightbulb, ListChecks, CheckCircle, BookOpen, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface SolveResult {
@@ -15,6 +15,12 @@ interface SolveResult {
   answer: string
 }
 
+interface SimilarQuestion {
+  question: string
+  answer: string
+  hint: string
+}
+
 export default function AiSolveResultPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -22,7 +28,7 @@ export default function AiSolveResultPage() {
   const [result, setResult] = useState<SolveResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [similarQuestions, setSimilarQuestions] = useState<Array<{ question: string; answer: string; hint: string }> | null>(null)
+  const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestion[]>([])
 
   useEffect(() => {
     if (!mistakeId) { setLoading(false); return }
@@ -41,6 +47,7 @@ export default function AiSolveResultPage() {
     if (!result) return
     setGenerating(true)
     try {
+      const existingTexts = similarQuestions.map(q => q.question)
       const res = await fetch('/api/ai/similar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,11 +55,14 @@ export default function AiSolveResultPage() {
           subject: result.subject,
           knowledgePoints: result.knowledge_points,
           answer: result.answer,
+          existingQuestions: existingTexts,
+          count: 3,
         }),
       })
       if (res.ok) {
         const { data } = await res.json()
-        setSimilarQuestions(data.questions)
+        setSimilarQuestions(prev => [...prev, ...data.questions])
+        toast.success(`已生成 ${data.questions.length} 道同类题`)
       } else {
         toast.error('生成同类题失败')
       }
@@ -80,7 +90,7 @@ export default function AiSolveResultPage() {
 
   return (
     <div className="space-y-4">
-      <button onClick={() => router.back()} className="text-[14px] text-blue-600 font-semibold active:scale-[0.98] transition-transform">← 返回</button>
+      <button onClick={() => router.back()} className="text-[14px] text-blue-600 font-semibold active:scale-[0.98] transition-transform">&larr; 返回</button>
 
       {result.image_url && (
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -126,16 +136,18 @@ export default function AiSolveResultPage() {
         查看错题本
       </button>
 
-      {!similarQuestions && (
-        <button onClick={generateSimilar} disabled={generating} className="w-full h-[50px] bg-purple-50 text-purple-600 rounded-2xl text-[15px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform">
-          {generating ? '生成中...' : '生成同类题'}
+      {/* Similar questions section */}
+      {similarQuestions.length === 0 && (
+        <button onClick={generateSimilar} disabled={generating}
+          className="w-full h-[50px] bg-purple-50 text-purple-600 rounded-2xl text-[15px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform">
+          {generating ? '生成中...' : '推荐相似题型'}
         </button>
       )}
 
-      {similarQuestions && (
+      {similarQuestions.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-[15px] font-bold text-gray-800 flex items-center gap-2">
-            <BookOpen className="w-[18px] h-[18px] text-purple-500" /> 同类题推荐
+            <BookOpen className="w-[18px] h-[18px] text-purple-500" /> 相似题型推荐 ({similarQuestions.length}道)
           </h3>
           {similarQuestions.map((q, i) => (
             <div key={i} className="bg-white rounded-2xl p-4 shadow-sm">
@@ -148,6 +160,12 @@ export default function AiSolveResultPage() {
               </details>
             </div>
           ))}
+
+          <button onClick={generateSimilar} disabled={generating}
+            className="w-full h-[48px] bg-purple-100 text-purple-700 rounded-2xl text-[14px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 transition-transform">
+            <RefreshCw className={`w-[16px] h-[16px] ${generating ? 'animate-spin' : ''}`} />
+            {generating ? '生成中...' : '继续生成更多相似题'}
+          </button>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { BookOpen, Search, Plus, X, Upload, Trash2, CheckCircle2, Circle, ChevronRight } from 'lucide-react'
+import { BookOpen, Search, Plus, X, Upload, Trash2, CheckCircle2, Circle, ChevronRight, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Mistake {
@@ -28,6 +28,12 @@ interface Mistake {
 
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '其他']
 
+interface SimilarQuestion {
+  question: string
+  answer: string
+  hint: string
+}
+
 export default function MistakesPage() {
   const [mistakes, setMistakes] = useState<Mistake[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,6 +45,8 @@ export default function MistakesPage() {
   const [showDetail, setShowDetail] = useState<Mistake | null>(null)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestion[]>([])
 
   const [form, setForm] = useState({
     subject: '', knowledgePoints: '', wrongReason: '', correctAnswer: '', note: '', keywords: '',
@@ -136,6 +144,57 @@ export default function MistakesPage() {
     } else {
       toast.error('删除失败')
     }
+  }
+
+  async function generateSimilar(mistake: Mistake) {
+    setGenerating(true)
+    setSimilarQuestions([])
+    try {
+      const res = await fetch('/api/ai/similar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: mistake.subject,
+          knowledgePoints: mistake.knowledge_points || [],
+          answer: mistake.answer || mistake.correct_answer || '',
+          count: 3,
+        }),
+      })
+      if (res.ok) {
+        const { data } = await res.json()
+        setSimilarQuestions(data.questions)
+        toast.success(`已生成 ${data.questions.length} 道同类题`)
+      } else {
+        toast.error('生成同类题失败')
+      }
+    } catch { toast.error('生成同类题失败') }
+    finally { setGenerating(false) }
+  }
+
+  async function generateMoreSimilar(mistake: Mistake) {
+    setGenerating(true)
+    try {
+      const existingTexts = similarQuestions.map(q => q.question)
+      const res = await fetch('/api/ai/similar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: mistake.subject,
+          knowledgePoints: mistake.knowledge_points || [],
+          answer: mistake.answer || mistake.correct_answer || '',
+          existingQuestions: existingTexts,
+          count: 3,
+        }),
+      })
+      if (res.ok) {
+        const { data } = await res.json()
+        setSimilarQuestions(prev => [...prev, ...data.questions])
+        toast.success(`已生成 ${data.questions.length} 道同类题`)
+      } else {
+        toast.error('生成同类题失败')
+      }
+    } catch { toast.error('生成同类题失败') }
+    finally { setGenerating(false) }
   }
 
   return (
@@ -277,12 +336,12 @@ export default function MistakesPage() {
 
       {/* Detail Bottom Sheet */}
       {showDetail && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowDetail(null)}>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowDetail(null); setSimilarQuestions([]) }}>
           <div className="absolute inset-0 bg-black/40 modal-backdrop" />
           <div className="relative bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50 sticky top-0 bg-white z-10">
               <h2 className="text-[17px] font-bold text-gray-800">错题详情</h2>
-              <button onClick={() => setShowDetail(null)} className="w-[36px] h-[36px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => { setShowDetail(null); setSimilarQuestions([]) }} className="w-[36px] h-[36px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -332,6 +391,39 @@ export default function MistakesPage() {
                   <p className="text-[14px] text-gray-600 bg-yellow-50 rounded-xl p-3">{showDetail.note}</p>
                 </div>
               )}
+
+              {/* Similar questions */}
+              {similarQuestions.length === 0 && (
+                <button onClick={() => generateSimilar(showDetail)} disabled={generating}
+                  className="w-full h-[44px] bg-purple-50 text-purple-600 rounded-2xl text-[14px] font-semibold active:scale-[0.98] disabled:opacity-50 transition-transform">
+                  {generating ? '生成中...' : '推荐相似题型'}
+                </button>
+              )}
+
+              {similarQuestions.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-[14px] font-bold text-gray-800 flex items-center gap-2">
+                    <BookOpen className="w-[16px] h-[16px] text-purple-500" /> 相似题型推荐 ({similarQuestions.length}道)
+                  </h3>
+                  {similarQuestions.map((q, i) => (
+                    <div key={i} className="bg-purple-50/50 rounded-2xl p-4">
+                      <p className="text-[12px] font-semibold text-purple-600">题目 {i + 1}</p>
+                      <p className="text-[14px] text-gray-700 mt-1.5">{q.question}</p>
+                      <details className="mt-3">
+                        <summary className="text-[13px] text-purple-600 font-medium cursor-pointer">查看答案</summary>
+                        <p className="text-[14px] text-green-700 mt-2 font-medium">{q.answer}</p>
+                        <p className="text-[12px] text-gray-400 mt-1">提示：{q.hint}</p>
+                      </details>
+                    </div>
+                  ))}
+                  <button onClick={() => generateMoreSimilar(showDetail)} disabled={generating}
+                    className="w-full h-[44px] bg-purple-100 text-purple-700 rounded-2xl text-[13px] font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 transition-transform">
+                    <RefreshCw className={`w-[14px] h-[14px] ${generating ? 'animate-spin' : ''}`} />
+                    {generating ? '生成中...' : '继续生成更多相似题'}
+                  </button>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => toggleMastered(showDetail)}
                   className={`flex-1 h-[48px] rounded-xl text-[14px] font-semibold active:scale-[0.98] transition-transform ${
