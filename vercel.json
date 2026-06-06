@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "src/app/api/ai/solve/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/ai/similar/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/ocr/recognize/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

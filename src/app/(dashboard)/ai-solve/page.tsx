@@ -76,12 +76,12 @@ export default function AiSolvePage() {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const maxW = 1920
+        const maxW = 800
         let w = img.width, h = img.height
         if (w > maxW) { h = h * maxW / w; w = maxW }
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.85)
+        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.5)
       }
       img.src = reader.result as string
     }

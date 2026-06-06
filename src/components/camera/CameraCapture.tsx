@@ -144,7 +144,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       const url = URL.createObjectURL(blob)
       setCaptured(url)
       stopCamera()
-    }, 'image/jpeg', 0.85)
+    }, 'image/jpeg', 0.5)
   }
 
   function confirmPhoto() {
@@ -152,7 +152,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     canvasRef.current.toBlob(blob => {
       if (!blob) return
       onCapture(blob, mode)
-    }, 'image/jpeg', 0.85)
+    }, 'image/jpeg', 0.5)
   }
 
   function retakePhoto() {
@@ -196,7 +196,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
       canvas.toBlob(blob => {
         if (!blob) return
         onCapture(blob, mode)
-      }, 'image/jpeg', 0.85)
+      }, 'image/jpeg', 0.5)
     }
     img.src = captured!
   }

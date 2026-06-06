@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireApprovedUser } from '@/lib/api/auth'
+import sharp from 'sharp'
 
 export async function POST(req: NextRequest) {
   const auth = await requireApprovedUser()
@@ -18,7 +19,18 @@ export async function POST(req: NextRequest) {
     if (!imageRes.ok) {
       return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
     }
-    const imageBuffer = Buffer.from(await imageRes.arrayBuffer())
+
+    let imageBuffer = Buffer.from(await imageRes.arrayBuffer())
+
+    try {
+      imageBuffer = await sharp(imageBuffer)
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 70 })
+        .toBuffer()
+    } catch {
+      // keep original if sharp fails
+    }
+
     const imageBase64 = imageBuffer.toString('base64')
 
     const { solveImage } = await import('@/lib/ai/doubao')
