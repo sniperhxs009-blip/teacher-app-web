@@ -2,9 +2,11 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import CameraCapture from '@/components/camera/CameraCapture'
+import dynamic from 'next/dynamic'
 import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle, BookOpen, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const CameraCapture = dynamic(() => import('@/components/camera/CameraCapture'), { ssr: false })
 
 interface SolveResult {
   id: string
@@ -135,12 +137,12 @@ export default function AiSolvePage() {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const maxW = 600
+        const maxW = 400
         let w = img.width, h = img.height
         if (w > maxW) { h = h * maxW / w; w = maxW }
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.4)
+        canvas.toBlob(b => { if (b) processImage(b) }, 'image/jpeg', 0.3)
       }
       img.src = reader.result as string
     }

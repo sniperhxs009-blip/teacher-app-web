@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -27,17 +27,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const [loading, setLoading] = useState(() => !getCache())
   const [authorized, setAuthorized] = useState(() => getCache())
-  const [checked, setChecked] = useState(false)
+  const checkedRef = useRef(false)
 
-  // Prefetch all tabs immediately on mount
   useEffect(() => {
-    adminTabs.forEach(t => router.prefetch(t.href))
-  }, [router])
-
-  // Auth check — only runs once on mount (not on navigation)
-  useEffect(() => {
-    if (checked) return
-    setChecked(true)
+    if (checkedRef.current) return
+    checkedRef.current = true
 
     async function check() {
       const supabase = createClient()
@@ -56,10 +50,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setLoading(false)
     }
     check()
-  }, [checked, router])
+  }, [router])
 
-  const navigate = useCallback((href: string) => {
-    router.push(href)
+  useEffect(() => {
+    // Prefetch tabs lazily in idle time
+    const id = requestIdleCallback ? requestIdleCallback(() => {
+      adminTabs.forEach(t => router.prefetch(t.href))
+    }) : setTimeout(() => {
+      adminTabs.forEach(t => router.prefetch(t.href))
+    }, 2000)
+    return () => {
+      if (requestIdleCallback) cancelIdleCallback(id as number)
+      else clearTimeout(id as ReturnType<typeof setTimeout>)
+    }
   }, [router])
 
   async function handleLogout() {
@@ -88,7 +91,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
           <h1 className="text-[16px] font-bold text-gray-800 flex-1">管理后台</h1>
           <button onClick={handleLogout}
-            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors">
+            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors"
+            style={{ touchAction: 'manipulation' }}>
             <LogOut className="w-[18px] h-[18px]" />
           </button>
         </div>
@@ -108,11 +112,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             return (
               <button
                 key={tab.href}
-                onClick={() => navigate(tab.href)}
-                className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full tap-highlight-transparent ${
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  if (!active) router.push(tab.href)
+                }}
+                className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full select-none ${
                   active ? 'text-blue-600' : 'text-gray-400'
                 }`}
-                style={{ WebkitTapHighlightColor: 'transparent' }}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 {active && (
                   <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-blue-600 rounded-full" />

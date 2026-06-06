@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
 
     try {
       imageBuffer = await sharp(imageBuffer)
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 70 })
+        .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 50 })
         .toBuffer()
     } catch {
       // keep original if sharp fails

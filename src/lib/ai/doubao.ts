@@ -52,32 +52,8 @@ export interface SolveResult {
 export async function solveImage(imageBase64: string): Promise<SolveResult[]> {
   validateConfig()
 
-  const prompt = `你是一位经验丰富的教师。请仔细查看这张图片，识别出图片中【所有】的题目，并对每一道题进行解答。
-
-重要要求：
-- 如果图片上有多道题目，你必须全部解答，一道都不能遗漏
-- 识别每题编号（如"1."、"2."、"(一)"等），编组题（如"1.(1)(2)"）视为一道题
-- 即使题目数量很多，也请全部解答完毕
-
-请按照以下JSON格式返回（只返回JSON，不要其他内容）：
-{
-  "questions": [
-    {
-      "analysis": "第1题的题目分析和解题思路",
-      "steps": ["步骤1", "步骤2"],
-      "answer": "第1题最终答案",
-      "subject": "科目（如数学、物理、化学等）",
-      "knowledgePoints": ["知识点1", "知识点2"]
-    },
-    {
-      "analysis": "第2题的题目分析和解题思路",
-      "steps": ["步骤1"],
-      "answer": "第2题最终答案",
-      "subject": "科目",
-      "knowledgePoints": ["知识点"]
-    }
-  ]
-}`
+  const prompt = `识别图中所有题目并快速解答。每题只给1-2句简短分析、关键步骤、答案、科目、知识点。返回JSON（只要JSON）：
+{"questions":[{"analysis":"简析","steps":["关键步骤"],"answer":"答案","subject":"数学","knowledgePoints":["知识点"]}]}`
 
   try {
     const res = await axios.post(
@@ -93,15 +69,15 @@ export async function solveImage(imageBase64: string): Promise<SolveResult[]> {
             ],
           },
         ],
-        temperature: 0.3,
-        max_tokens: 16384,
+        temperature: 0.1,
+        max_tokens: 4096,
       },
       {
         headers: {
           Authorization: `Bearer ${DOUBAO_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        timeout: 120000,
+        timeout: 90000,
       },
     )
 
@@ -110,11 +86,9 @@ export async function solveImage(imageBase64: string): Promise<SolveResult[]> {
     if (!jsonMatch) throw new Error('AI返回格式错误，请重试')
 
     const parsed = JSON.parse(jsonMatch[0])
-    // Handle both new format (questions array) and old format (single object)
     if (parsed.questions && Array.isArray(parsed.questions)) {
       return parsed.questions
     }
-    // Fallback: single question
     return [parsed]
   } catch (err: unknown) {
     throw parseDoubaoError(err)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Home, FileSpreadsheet, BookOpen, Camera, User } from 'lucide-react'
@@ -22,24 +22,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const pathname = usePathname()
   const [loading, setLoading] = useState(() => !getCached())
-  const [checked, setChecked] = useState(false)
+  const checkedRef = useRef(false)
 
-  // Prefetch on mount
   useEffect(() => {
-    tabs.forEach(t => router.prefetch(t.href))
+    const id = requestIdleCallback ? requestIdleCallback(() => {
+      tabs.forEach(t => router.prefetch(t.href))
+    }) : setTimeout(() => {
+      tabs.forEach(t => router.prefetch(t.href))
+    }, 2000)
+    return () => {
+      if (requestIdleCallback) cancelIdleCallback(id as number)
+      else clearTimeout(id as ReturnType<typeof setTimeout>)
+    }
   }, [router])
 
-  // Auth check — runs once
   useEffect(() => {
-    if (checked) return
-    setChecked(true)
+    if (checkedRef.current) return
+    checkedRef.current = true
 
     async function checkAuth() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      // Try cached profile
       const cachedProfile = (() => {
         try {
           const raw = sessionStorage.getItem('user_profile')
@@ -76,10 +81,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setLoading(false)
     }
     checkAuth()
-  }, [checked, router])
-
-  const navigate = useCallback((href: string) => {
-    router.push(href)
   }, [router])
 
   if (loading) {
@@ -110,13 +111,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return (
                 <button
                   key={tab.href}
-                  onClick={() => navigate(tab.href)}
-                  className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full rounded-2xl transition-all duration-200 ${
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    if (!active) router.push(tab.href)
+                  }}
+                  className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full rounded-2xl transition-all duration-200 select-none ${
                     active
                       ? 'text-indigo-600 bg-indigo-50/80'
                       : 'text-gray-400 hover:text-gray-600'
                   }`}
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                 >
                   <Icon className="w-[22px] h-[22px] mb-0.5" strokeWidth={active ? 2.5 : 1.75} />
                   <span className="text-[10px] leading-none font-semibold tracking-wide">{tab.label}</span>
