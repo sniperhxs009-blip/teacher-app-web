@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -17,30 +17,29 @@ const adminTabs = [
   { href: '/admin/config', label: '设置', icon: Settings },
 ]
 
+function getCache() {
+  if (typeof window === 'undefined') return false
+  return !!sessionStorage.getItem('admin_auth')
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [loading, setLoading] = useState(true)
-  const [authorized, setAuthorized] = useState(false)
+  const [loading, setLoading] = useState(() => !getCache())
+  const [authorized, setAuthorized] = useState(() => getCache())
+  const [checked, setChecked] = useState(false)
 
-  async function handleLogout() {
-    sessionStorage.removeItem('admin_auth')
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
+  // Prefetch all tabs immediately on mount
   useEffect(() => {
-    async function check() {
-      // Use cached result for instant subsequent loads
-      const cached = sessionStorage.getItem('admin_auth')
-      if (cached) {
-        setAuthorized(true)
-        setLoading(false)
-        adminTabs.forEach(t => router.prefetch(t.href))
-        return
-      }
+    adminTabs.forEach(t => router.prefetch(t.href))
+  }, [router])
 
+  // Auth check — only runs once on mount (not on navigation)
+  useEffect(() => {
+    if (checked) return
+    setChecked(true)
+
+    async function check() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
@@ -53,12 +52,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
         sessionStorage.setItem('admin_auth', '1')
         setAuthorized(true)
-        adminTabs.forEach(t => router.prefetch(t.href))
       }
       setLoading(false)
     }
     check()
+  }, [checked, router])
+
+  const navigate = useCallback((href: string) => {
+    router.push(href)
   }, [router])
+
+  async function handleLogout() {
+    sessionStorage.removeItem('admin_auth')
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   if (loading) {
     return (
@@ -91,25 +100,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-gray-100">
-        <div className="flex items-center justify-around h-[56px] overflow-x-auto no-scrollbar">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-gray-100" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="flex items-center justify-around h-[56px]">
           {adminTabs.map(tab => {
             const Icon = tab.icon
             const active = pathname === tab.href || pathname.startsWith(tab.href + '/')
             return (
-              <Link
+              <button
                 key={tab.href}
-                href={tab.href}
-                className={`relative flex flex-col items-center justify-center min-w-0 flex-shrink-0 px-2 h-full ${
+                onClick={() => navigate(tab.href)}
+                className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full tap-highlight-transparent ${
                   active ? 'text-blue-600' : 'text-gray-400'
                 }`}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 {active && (
                   <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-blue-600 rounded-full" />
                 )}
                 <Icon className="w-[20px] h-[20px] mb-0.5" strokeWidth={active ? 2.5 : 2} />
                 <span className="text-[10px] leading-none font-medium">{tab.label}</span>
-              </Link>
+              </button>
             )
           })}
         </div>
