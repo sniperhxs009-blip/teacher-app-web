@@ -51,15 +51,6 @@ export async function requireApprovedUser(): Promise<
   if (!profile) {
     return { error: NextResponse.json({ error: '用户不存在' }, { status: 404 }) }
   }
-  if (profile.status === 'pending') {
-    return { error: NextResponse.json({ error: '账号待审核' }, { status: 403 }) }
-  }
-  if (profile.status === 'rejected') {
-    return { error: NextResponse.json({ error: '账号审核未通过' }, { status: 403 }) }
-  }
-  if (profile.status === 'frozen') {
-    return { error: NextResponse.json({ error: '账号已冻结' }, { status: 403 }) }
-  }
   return { user: auth.user, profile }
 }
 

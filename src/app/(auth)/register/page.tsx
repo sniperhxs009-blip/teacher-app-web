@@ -20,7 +20,7 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: form.email, password: form.password,
         options: { data: { nickname: form.nickname, phone: form.phone } },
       })
@@ -29,8 +29,17 @@ export default function RegisterPage() {
         return
       }
 
-      toast.success('注册成功，等待管理员审核')
-      router.push('/pending')
+      const userId = data.user?.id
+      if (userId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from('profiles') as any).update({
+          status: 'approved',
+          approve_time: new Date().toISOString(),
+        }).eq('id', userId)
+      }
+
+      toast.success('注册成功！')
+      router.push('/home')
       router.refresh()
     } catch { toast.error('注册失败') }
     finally { setLoading(false) }

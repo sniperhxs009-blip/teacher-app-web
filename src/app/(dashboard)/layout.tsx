@@ -27,13 +27,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const res = await fetch(`/api/user/profile?userId=${user.id}`)
       if (res.ok) {
         const { data: profile } = await res.json()
-        if (profile) {
-          if (profile.status === 'pending' || profile.status === 'rejected' || profile.status === 'frozen') {
-            router.push('/pending'); return
-          }
-          if (profile.role === 'admin' || profile.role === 'super_admin') {
-            router.push('/admin/dashboard'); return
-          }
+        if (profile && (profile.role === 'admin' || profile.role === 'super_admin')) {
+          router.push('/admin/dashboard'); return
         }
       }
       setLoading(false)

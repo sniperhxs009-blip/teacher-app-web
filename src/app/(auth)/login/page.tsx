@@ -6,16 +6,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
-function getRedirectPath(profile: { role: string; status: string }) {
-  if (profile.status === 'pending' || profile.status === 'rejected' || profile.status === 'frozen') {
-    return '/pending'
-  }
-  if (profile.role === 'admin' || profile.role === 'super_admin') {
-    return '/admin/dashboard'
-  }
-  return '/home'
-}
-
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -39,7 +29,11 @@ export default function LoginPage() {
         const res = await fetch(`/api/user/profile?userId=${userId}`)
         const { data: profile } = await res.json()
         toast.success('登录成功')
-        router.push(profile ? getRedirectPath(profile) : '/home')
+        if (profile && (profile.role === 'admin' || profile.role === 'super_admin')) {
+          router.push('/admin/dashboard')
+        } else {
+          router.push('/home')
+        }
       } else {
         router.push('/home')
       }
