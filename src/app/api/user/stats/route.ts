@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser } from '@/lib/api/auth'
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('userId')
-  if (!userId) return NextResponse.json({ error: '缺少userId' }, { status: 400 })
+export async function GET() {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
 
   const supabase = createServiceClient()
+  const userId = auth.user.id
+
   const [
     { data: sheets },
     { data: mistakes },

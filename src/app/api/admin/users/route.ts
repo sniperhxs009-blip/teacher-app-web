@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/api/auth'
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth.error) return auth.error
+
   const supabase = createServiceClient()
   const url = new URL(request.url)
   const status = url.searchParams.get('status')
@@ -19,9 +23,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth.error) return auth.error
+
   const supabase = createServiceClient()
   const body = await request.json()
-  const { userId, status, rejectReason, role, adminName } = body
+  const { userId, status, rejectReason, role } = body
+  const adminName = auth.profile.nickname || auth.profile.real_name || '管理员'
 
   if (!userId) return NextResponse.json({ error: '缺少用户ID' }, { status: 400 })
 
@@ -40,7 +48,8 @@ export async function PATCH(request: NextRequest) {
   await supabase.from('admin_logs').insert({
     action: status === 'approved' ? 'approve_user' : status === 'rejected' ? 'reject_user' : status === 'frozen' ? 'freeze_user' : 'update_user',
     target_user_id: userId,
-    admin_name: adminName || '管理员',
+    admin_id: auth.user.id,
+    admin_name: adminName,
     details: body,
   })
 

@@ -1,28 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser } from '@/lib/api/auth'
 
 export async function POST(req: NextRequest) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
   try {
     const body = await req.json()
-    const { imageUrl, storagePath, userId } = body
+    const { imageUrl, storagePath } = body
 
-    if (!imageUrl || !userId) {
-      return NextResponse.json({ error: '缺少参数' }, { status: 400 })
+    if (!imageUrl) {
+      return NextResponse.json({ error: '缺少图片参数' }, { status: 400 })
     }
 
-    // Download image & convert to base64
     const imageRes = await fetch(imageUrl)
+    if (!imageRes.ok) {
+      return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+    }
     const imageBuffer = Buffer.from(await imageRes.arrayBuffer())
     const imageBase64 = imageBuffer.toString('base64')
 
-    // Call Doubao Vision
     const { solveImage } = await import('@/lib/ai/doubao')
     const result = await solveImage(imageBase64)
 
-    // Save as mistake with AI analysis
     const supabase = createServiceClient()
     const { data: mistake, error } = await supabase.from('mistakes').insert({
-      user_id: userId,
+      user_id: auth.user.id,
       image_url: imageUrl,
       storage_path: storagePath || '',
       subject: result.subject || '其他',

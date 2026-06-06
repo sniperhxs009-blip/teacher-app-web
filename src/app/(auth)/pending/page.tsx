@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 
 export default function PendingPage() {
   const router = useRouter()
-  const [status, setStatus] = useState<'loading' | 'pending' | 'rejected' | 'approved'>('loading')
+  const [status, setStatus] = useState<'loading' | 'pending' | 'rejected' | 'frozen'>('loading')
   const [reason, setReason] = useState('')
 
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function PendingPage() {
       const { data: profile } = await res.json()
       if (!profile) { router.push('/login'); return }
 
-      if (profile.status === 'approved' || profile.status === 'pending') {
+      if (profile.status === 'approved') {
         if (profile.role === 'admin' || profile.role === 'super_admin') {
           router.push('/admin/dashboard')
         } else {
@@ -88,6 +88,28 @@ export default function PendingPage() {
             原因：{reason}
           </p>
         )}
+        <button
+          onClick={handleLogout}
+          className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-[15px] text-gray-500 font-medium active:scale-[0.98] transition-transform"
+        >
+          退出登录
+        </button>
+      </div>
+    )
+  }
+
+  if (status === 'frozen') {
+    return (
+      <div className="text-center">
+        <div className="w-[72px] h-[72px] bg-gradient-to-br from-gray-400 to-gray-600 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg">
+          <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h1 className="text-[22px] font-bold text-gray-900">账号已冻结</h1>
+        <p className="text-[14px] text-gray-400 mt-2 mb-8 leading-relaxed">
+          您的账号已被管理员冻结，请联系管理员处理。
+        </p>
         <button
           onClick={handleLogout}
           className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-[15px] text-gray-500 font-medium active:scale-[0.98] transition-transform"

@@ -2,12 +2,21 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import CameraCapture from '@/components/camera/CameraCapture'
 import { FileSearch, Lightbulb, FileSpreadsheet, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 type CameraMode = 'ocr' | 'solve' | 'table' | null
+
+async function uploadImage(file: File, bucket: 'ocr' | 'mistakes' | 'sheets') {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('bucket', bucket)
+  const res = await fetch('/api/upload', { method: 'POST', body: formData })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || '上传失败')
+  return data as { publicUrl: string; storagePath: string }
+}
 
 export default function CameraPage() {
   const router = useRouter()
@@ -17,66 +26,60 @@ export default function CameraPage() {
   async function handleCapture(blob: Blob, captureMode: string) {
     setCapturing(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { toast.error('请先登录'); return }
-
       const fileName = `${Date.now()}.jpg`
-      const storagePath = `${user.id}/${fileName}`
       const file = new File([blob], fileName, { type: 'image/jpeg' })
 
       if (captureMode === 'ocr') {
-        const { error: upErr } = await supabase.storage.from('ocr').upload(storagePath, file, {
-          contentType: 'image/jpeg', upsert: false,
-        })
-        if (upErr) { toast.error(upErr.message); return }
-
-        const { data: urlData } = supabase.storage.from('ocr').getPublicUrl(storagePath)
+        const { publicUrl, storagePath } = await uploadImage(file, 'ocr')
         toast.success('图片已上传，正在识别...')
 
         const res = await fetch('/api/ocr/recognize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: urlData.publicUrl, storagePath, userId: user.id }),
+          body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
         })
         if (res.ok) {
           const { data: result } = await res.json()
           router.push(`/ocr-result?id=${result.id}`)
         } else {
-          toast.error('OCR识别失败，请重试')
+          const err = await res.json().catch(() => ({}))
+          toast.error(err.error || 'OCR识别失败，请重试')
         }
       } else if (captureMode === 'solve') {
-        const { error: upErr } = await supabase.storage.from('mistakes').upload(storagePath, file, {
-          contentType: 'image/jpeg', upsert: false,
-        })
-        if (upErr) { toast.error(upErr.message); return }
-
-        const { data: urlData } = supabase.storage.from('mistakes').getPublicUrl(storagePath)
+        const { publicUrl, storagePath } = await uploadImage(file, 'mistakes')
         toast.success('图片已上传，AI正在解题...')
 
         const res = await fetch('/api/ai/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: urlData.publicUrl, storagePath, userId: user.id }),
+          body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
         })
         if (res.ok) {
           const { data: mistake } = await res.json()
           router.push(`/ai-solve/result?mistakeId=${mistake.id}`)
         } else {
-          toast.error('AI解题失败，请重试')
+          const err = await res.json().catch(() => ({}))
+          toast.error(err.error || 'AI解题失败，请重试')
         }
       } else if (captureMode === 'table') {
-        const { error: upErr } = await supabase.storage.from('sheets').upload(storagePath, file, {
-          contentType: 'image/jpeg', upsert: false,
-        })
-        if (upErr) { toast.error(upErr.message); return }
-        toast.success('图片已上传到表格库')
-        router.push('/sheets')
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('title', `拍照表格 ${new Date().toLocaleDateString('zh-CN')}`)
+
+        const res = await fetch('/api/sheets', { method: 'POST', body: formData })
+        if (res.ok) {
+          toast.success('图片已保存到表格库')
+          router.push('/sheets')
+        } else {
+          const err = await res.json().catch(() => ({}))
+          toast.error(err.error || '上传失败，请重试')
+        }
       }
 
       setMode(null)
-    } catch {
-      toast.error('操作失败，请重试')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '操作失败，请重试'
+      toast.error(msg)
     } finally {
       setCapturing(false)
     }

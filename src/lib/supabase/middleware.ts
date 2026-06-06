@@ -21,7 +21,6 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  // Service role client for profile queries (bypasses RLS)
   const serviceClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -42,41 +41,49 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthPage && pathname !== '/pending') {
+  if (user) {
     const { data: profile } = await serviceClient
       .from('profiles')
-      .select('role')
+      .select('role, status')
       .eq('id', user.id)
       .single()
 
-    if (!profile) return supabaseResponse
+    if (profile) {
+      const isAdmin = profile.role === 'admin' || profile.role === 'super_admin'
+      const isApproved = profile.status === 'approved'
+      const needsPending = profile.status === 'pending' || profile.status === 'rejected' || profile.status === 'frozen'
 
-    const url = request.nextUrl.clone()
-    if (profile.role === 'admin' || profile.role === 'super_admin') {
-      url.pathname = '/admin/dashboard'
-    } else {
-      url.pathname = '/home'
-    }
-    return NextResponse.redirect(url)
-  }
+      if (isAuthPage && pathname !== '/pending') {
+        const url = request.nextUrl.clone()
+        if (!isApproved && needsPending) {
+          url.pathname = '/pending'
+        } else if (isAdmin) {
+          url.pathname = '/admin/dashboard'
+        } else {
+          url.pathname = '/home'
+        }
+        return NextResponse.redirect(url)
+      }
 
-  if (user && pathname === '/pending') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/home'
-    return NextResponse.redirect(url)
-  }
+      if (!isAuthPage && needsPending && pathname !== '/pending') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/pending'
+        return NextResponse.redirect(url)
+      }
 
-  if (user && pathname.startsWith('/admin')) {
-    const { data: profile } = await serviceClient
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+      if (!isAuthPage && isApproved && pathname === '/pending') {
+        const url = request.nextUrl.clone()
+        url.pathname = isAdmin ? '/admin/dashboard' : '/home'
+        return NextResponse.redirect(url)
+      }
 
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/home'
-      return NextResponse.redirect(url)
+      if (pathname.startsWith('/admin')) {
+        if (!isAdmin) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/home'
+          return NextResponse.redirect(url)
+        }
+      }
     }
   }
 

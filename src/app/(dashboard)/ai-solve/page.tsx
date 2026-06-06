@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import CameraCapture from '@/components/camera/CameraCapture'
 import { Camera, ImageUp, Lightbulb, ListChecks, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -17,6 +16,16 @@ interface SolveResult {
   answer: string
 }
 
+async function uploadImage(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('bucket', 'mistakes')
+  const res = await fetch('/api/upload', { method: 'POST', body: formData })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || '上传失败')
+  return data as { publicUrl: string; storagePath: string }
+}
+
 export default function AiSolvePage() {
   const router = useRouter()
   const [mode, setMode] = useState<'camera' | 'upload' | null>(null)
@@ -29,26 +38,16 @@ export default function AiSolvePage() {
     setSolving(true)
     setError('')
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { toast.error('请先登录'); return }
-
       const fileName = `${Date.now()}.jpg`
-      const storagePath = `${user.id}/${fileName}`
       const file = new File([blob], fileName, { type: 'image/jpeg' })
 
-      const { error: upErr } = await supabase.storage.from('mistakes').upload(storagePath, file, {
-        contentType: 'image/jpeg', upsert: false,
-      })
-      if (upErr) { toast.error('上传失败: ' + upErr.message); return }
-
-      const { data: urlData } = supabase.storage.from('mistakes').getPublicUrl(storagePath)
+      const { publicUrl, storagePath } = await uploadImage(file)
       toast.success('图片已上传，AI正在分析...')
 
       const res = await fetch('/api/ai/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: urlData.publicUrl, storagePath, userId: user.id }),
+        body: JSON.stringify({ imageUrl: publicUrl, storagePath }),
       })
 
       if (res.ok) {
@@ -59,8 +58,9 @@ export default function AiSolvePage() {
         const err = await res.json().catch(() => ({ error: 'AI解题失败' }))
         setError(err.error || 'AI服务暂不可用，请确认已配置 API Key')
       }
-    } catch {
-      setError('AI服务调用失败，请检查网络连接')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '操作失败，请重试'
+      setError(msg)
     } finally {
       setSolving(false)
     }
@@ -69,11 +69,12 @@ export default function AiSolvePage() {
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
     const reader = new FileReader()
     reader.onload = () => {
-      const canvas = document.createElement('canvas')
       const img = new Image()
       img.onload = () => {
+        const canvas = document.createElement('canvas')
         const maxW = 1920
         let w = img.width, h = img.height
         if (w > maxW) { h = h * maxW / w; w = maxW }
@@ -94,7 +95,6 @@ export default function AiSolvePage() {
 
   return (
     <div className="space-y-4">
-      {/* Camera modal */}
       {mode === 'camera' && (
         <CameraCapture mode="solve" onCapture={processImage} onClose={() => setMode(null)} />
       )}
@@ -102,10 +102,8 @@ export default function AiSolvePage() {
       <h1 className="text-xl font-bold text-gray-800">AI解题</h1>
       <p className="text-[14px] text-gray-400">拍照或上传题目图片，AI智能分析解答</p>
 
-      {/* Hidden file input */}
       <input id="ai-solve-upload" type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
 
-      {/* Solving state */}
       {solving && (
         <div className="bg-white rounded-2xl p-10 shadow-sm text-center">
           <Loader2 className="w-12 h-12 text-purple-500 mx-auto animate-spin mb-4" />
@@ -114,7 +112,6 @@ export default function AiSolvePage() {
         </div>
       )}
 
-      {/* Error state */}
       {error && !solving && !result && (
         <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
@@ -134,7 +131,6 @@ export default function AiSolvePage() {
         </div>
       )}
 
-      {/* Result */}
       {result && !solving && (
         <div className="space-y-4">
           {result.image_url && (
@@ -190,7 +186,6 @@ export default function AiSolvePage() {
         </div>
       )}
 
-      {/* Action buttons - show when no result/error/solving */}
       {!result && !error && !solving && (
         <div className="space-y-3">
           <button onClick={() => setMode('camera')}

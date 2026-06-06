@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser, verifyResourceOwner } from '@/lib/api/auth'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
+  const isOwner = await verifyResourceOwner('mistakes', params.id, auth.user.id)
+  if (!isOwner) return NextResponse.json({ error: '无权访问' }, { status: 403 })
+
   const supabase = createServiceClient()
   const { data } = await supabase.from('mistakes').select('*').eq('id', params.id).single()
   if (!data) return NextResponse.json({ error: '未找到' }, { status: 404 })
@@ -9,6 +16,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
+  const isOwner = await verifyResourceOwner('mistakes', params.id, auth.user.id)
+  if (!isOwner) return NextResponse.json({ error: '无权操作' }, { status: 403 })
+
   const supabase = createServiceClient()
   const body = await req.json()
 
@@ -26,6 +39,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
+  const isOwner = await verifyResourceOwner('mistakes', params.id, auth.user.id)
+  if (!isOwner) return NextResponse.json({ error: '无权操作' }, { status: 403 })
+
   const supabase = createServiceClient()
   const { data: m } = await supabase.from('mistakes').select('storage_path').eq('id', params.id).single()
   if (m?.storage_path) {

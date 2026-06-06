@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser } from '@/lib/api/auth'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
   const supabase = createServiceClient()
   const { searchParams } = new URL(req.url)
   const search = searchParams.get('search') || ''
@@ -9,11 +13,8 @@ export async function GET(req: NextRequest) {
   const mastered = searchParams.get('mastered')
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '20')
-  const userId = searchParams.get('userId')
 
-  if (!userId) return NextResponse.json({ error: '缺少userId' }, { status: 400 })
-
-  let query = supabase.from('mistakes').select('*', { count: 'exact' }).eq('user_id', userId)
+  let query = supabase.from('mistakes').select('*', { count: 'exact' }).eq('user_id', auth.user.id)
 
   if (subject) query = query.eq('subject', subject)
   if (mastered === 'true') query = query.eq('mastered', true)
@@ -30,11 +31,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
   const supabase = createServiceClient()
   const form = await req.formData()
 
   const file = form.get('image') as File | null
-  const userId = form.get('userId') as string
   const subject = form.get('subject') as string
   const knowledgePoints = (form.get('knowledgePoints') as string || '').split(',').filter(Boolean)
   const recognizedText = form.get('recognizedText') as string || ''
@@ -44,13 +47,11 @@ export async function POST(req: NextRequest) {
   const keywords = form.get('keywords') as string || ''
   const source = form.get('source') as string || 'manual'
 
-  if (!userId) return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
-
   let imageUrl = ''
   let storagePath = ''
 
   if (file) {
-    storagePath = `${userId}/${Date.now()}-${file.name}`
+    storagePath = `${auth.user.id}/${Date.now()}-${file.name}`
     const buffer = Buffer.from(await file.arrayBuffer())
     const { error: upErr } = await supabase.storage.from('mistakes').upload(storagePath, buffer, {
       contentType: file.type || 'image/jpeg', upsert: false,
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: mistake, error } = await supabase.from('mistakes').insert({
-    user_id: userId, image_url: imageUrl, storage_path: storagePath, subject: subject || '其他',
+    user_id: auth.user.id, image_url: imageUrl, storage_path: storagePath, subject: subject || '其他',
     knowledge_points: knowledgePoints, recognized_text: recognizedText, wrong_reason: wrongReason,
     correct_answer: correctAnswer, note, keywords, source,
   }).select().single()

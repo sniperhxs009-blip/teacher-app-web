@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser } from '@/lib/api/auth'
 
 export async function POST(req: NextRequest) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
   try {
     const body = await req.json()
-    const { imageUrl, storagePath, userId } = body
+    const { imageUrl, storagePath } = body
 
     if (!imageUrl) {
-      return NextResponse.json({ error: '缺少参数' }, { status: 400 })
+      return NextResponse.json({ error: '缺少图片参数' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
+    const userId = auth.user.id
 
-    // Create OCR result record if needed
     let ocrId = body.ocrId
     if (!ocrId) {
-      if (!userId) return NextResponse.json({ error: '缺少userId' }, { status: 400 })
       const { data: newOcr, error: createErr } = await supabase.from('ocr_results').insert({
         user_id: userId,
         original_image: imageUrl,
@@ -25,12 +28,13 @@ export async function POST(req: NextRequest) {
       ocrId = newOcr.id
     }
 
-    // Download image & convert to base64
     const imageRes = await fetch(imageUrl)
+    if (!imageRes.ok) {
+      return NextResponse.json({ error: '无法读取上传的图片' }, { status: 400 })
+    }
     const imageBuffer = Buffer.from(await imageRes.arrayBuffer())
     const imageBase64 = imageBuffer.toString('base64')
 
-    // Call Baidu OCR
     const { recognizeTable } = await import('@/lib/ai/baidu-ocr')
     let recognizedData: { tables?: unknown; text?: string[] }
 
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
       const result = await recognizeTable(imageBase64)
       recognizedData = { tables: result.tables }
 
-      if (result.excelBase64 && userId) {
+      if (result.excelBase64) {
         const excelBuffer = Buffer.from(result.excelBase64, 'base64')
         const excelPath = `${userId}/ocr-${ocrId}.xlsx`
         await supabase.storage.from('ocr').upload(excelPath, excelBuffer, {

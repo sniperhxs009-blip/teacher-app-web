@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/api/auth'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin()
+  if (auth.error) return auth.error
+
   const supabase = createServiceClient()
   const { searchParams } = new URL(req.url)
   const page = parseInt(searchParams.get('page') || '1')

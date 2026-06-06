@@ -6,6 +6,16 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
+function getRedirectPath(profile: { role: string; status: string }) {
+  if (profile.status === 'pending' || profile.status === 'rejected' || profile.status === 'frozen') {
+    return '/pending'
+  }
+  if (profile.role === 'admin' || profile.role === 'super_admin') {
+    return '/admin/dashboard'
+  }
+  return '/home'
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -29,11 +39,7 @@ export default function LoginPage() {
         const res = await fetch(`/api/user/profile?userId=${userId}`)
         const { data: profile } = await res.json()
         toast.success('登录成功')
-        if (profile && (profile.role === 'admin' || profile.role === 'super_admin')) {
-          router.push('/admin/dashboard')
-        } else {
-          router.push('/home')
-        }
+        router.push(profile ? getRedirectPath(profile) : '/home')
       } else {
         router.push('/home')
       }
@@ -44,7 +50,6 @@ export default function LoginPage() {
 
   return (
     <div className="text-center">
-      {/* Logo */}
       <div className="w-[72px] h-[72px] bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-blue-200/50">
         <span className="text-white text-3xl font-bold">教</span>
       </div>

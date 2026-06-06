@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireApprovedUser, verifyResourceOwner } from '@/lib/api/auth'
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createServiceClient()
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
 
+  const isOwner = await verifyResourceOwner('sheets', params.id, auth.user.id)
+  if (!isOwner) return NextResponse.json({ error: '无权操作' }, { status: 403 })
+
+  const supabase = createServiceClient()
   const { data: sheet } = await supabase.from('sheets').select('storage_path').eq('id', params.id).single()
   if (!sheet) return NextResponse.json({ error: '未找到表格' }, { status: 404 })
 
@@ -18,6 +24,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApprovedUser()
+  if (auth.error) return auth.error
+
+  const isOwner = await verifyResourceOwner('sheets', params.id, auth.user.id)
+  if (!isOwner) return NextResponse.json({ error: '无权操作' }, { status: 403 })
+
   const supabase = createServiceClient()
   const body = await req.json()
 
