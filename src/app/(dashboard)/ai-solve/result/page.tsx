@@ -64,7 +64,8 @@ export default function AiSolveResultPage() {
         setSimilarQuestions(prev => [...prev, ...data.questions])
         toast.success(`已生成 ${data.questions.length} 道同类题`)
       } else {
-        toast.error('生成同类题失败')
+        const { error } = await res.json().catch(() => ({ error: '生成同类题失败' }))
+        toast.error(error || '生成同类题失败')
       }
     } catch { toast.error('生成同类题失败') }
     finally { setGenerating(false) }

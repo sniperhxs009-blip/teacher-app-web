@@ -66,7 +66,8 @@ export default function OcrResultPage() {
       toast.success('已保存')
       setResult({ ...result, recognized_data: tableData })
     } else {
-      toast.error('保存失败')
+      const { error } = await res.json().catch(() => ({ error: '保存失败' }))
+      toast.error(error || '保存失败')
     }
     setSaving(false)
   }
@@ -89,7 +90,8 @@ export default function OcrResultPage() {
       toast.success('已归档到表格库')
       router.push('/sheets')
     } else {
-      toast.error('归档失败')
+      const { error } = await res.json().catch(() => ({ error: '归档失败' }))
+      toast.error(error || '归档失败')
     }
     setSaving(false)
   }
@@ -128,7 +130,8 @@ export default function OcrResultPage() {
           toast.success('AI纠错完成')
         }
       } else {
-        toast.error('AI纠错失败')
+        const { error } = await res.json().catch(() => ({ error: 'AI纠错失败' }))
+        toast.error(error || 'AI纠错失败')
       }
     } catch { toast.error('AI纠错失败') }
     finally { setAiCorrecting(false) }
@@ -159,7 +162,8 @@ export default function OcrResultPage() {
           toast.success('AI分类完成')
         }
       } else {
-        toast.error('AI分类失败')
+        const { error } = await res.json().catch(() => ({ error: 'AI分类失败' }))
+        toast.error(error || 'AI分类失败')
       }
     } catch { toast.error('AI分类失败') }
     finally { setAiClassifying(false) }

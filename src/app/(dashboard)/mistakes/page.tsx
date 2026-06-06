@@ -130,7 +130,8 @@ export default function MistakesPage() {
       toast.success(m.mastered ? '已标记为未掌握' : '已标记为已掌握')
       loadMistakes()
     } else {
-      toast.error('操作失败')
+      const { error } = await res.json().catch(() => ({ error: '操作失败' }))
+      toast.error(error || '操作失败')
     }
   }
 
@@ -142,7 +143,8 @@ export default function MistakesPage() {
       setShowDetail(null)
       loadMistakes()
     } else {
-      toast.error('删除失败')
+      const { error } = await res.json().catch(() => ({ error: '删除失败' }))
+      toast.error(error || '删除失败')
     }
   }
 
@@ -165,7 +167,8 @@ export default function MistakesPage() {
         setSimilarQuestions(data.questions)
         toast.success(`已生成 ${data.questions.length} 道同类题`)
       } else {
-        toast.error('生成同类题失败')
+        const { error } = await res.json().catch(() => ({ error: '生成同类题失败' }))
+        toast.error(error || '生成同类题失败')
       }
     } catch { toast.error('生成同类题失败') }
     finally { setGenerating(false) }
@@ -191,7 +194,8 @@ export default function MistakesPage() {
         setSimilarQuestions(prev => [...prev, ...data.questions])
         toast.success(`已生成 ${data.questions.length} 道同类题`)
       } else {
-        toast.error('生成同类题失败')
+        const { error } = await res.json().catch(() => ({ error: '生成同类题失败' }))
+        toast.error(error || '生成同类题失败')
       }
     } catch { toast.error('生成同类题失败') }
     finally { setGenerating(false) }

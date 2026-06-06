@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { requireApprovedUser } from '@/lib/api/auth'
+import * as XLSX from 'xlsx'
 
 export async function GET(req: NextRequest) {
   const auth = await requireApprovedUser()
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
   const contentType = req.headers.get('content-type') || ''
 
-  // JSON body: create sheet from OCR table data (headers + rows)
+  // JSON body: create sheet from OCR table data (headers + rows) → generates XLSX
   if (contentType.includes('application/json')) {
     const body = await req.json()
     const { title, headers, rows } = body
@@ -42,13 +43,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
     }
 
-    const csvContent = [headers.join(','), ...rows.map((row: string[]) => row.join(','))].join('\n')
-    const fileName = `${Date.now()}-ocr-table.csv`
-    const storagePath = `${auth.user.id}/${fileName}`
-    const buffer = Buffer.from('﻿' + csvContent, 'utf-8')
+    const sheetData = [headers, ...rows]
+    const ws = XLSX.utils.aoa_to_sheet(sheetData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 
-    const { error: uploadError } = await supabase.storage.from('sheets').upload(storagePath, buffer, {
-      contentType: 'text/csv',
+    const fileName = `${Date.now()}-ocr-table.xlsx`
+    const storagePath = `${auth.user.id}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage.from('sheets').upload(storagePath, excelBuffer, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       upsert: false,
     })
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
@@ -60,8 +65,8 @@ export async function POST(req: NextRequest) {
       title,
       file_url: urlData.publicUrl,
       storage_path: storagePath,
-      file_type: 'csv',
-      file_size: buffer.length,
+      file_type: 'xlsx',
+      file_size: excelBuffer.length,
       subject: '',
       grade: '',
       exam_type: '',

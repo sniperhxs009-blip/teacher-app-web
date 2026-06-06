@@ -67,6 +67,9 @@ export default function ReviewPage() {
         setDone(true)
       }
       if (mastered) toast.success('已标记为掌握')
+    } else {
+      const { error } = await res.json().catch(() => ({ error: '操作失败' }))
+      toast.error(error || '操作失败')
     }
   }
 

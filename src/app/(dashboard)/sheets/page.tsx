@@ -96,7 +96,8 @@ export default function SheetsPage() {
       toast.success('已删除')
       loadSheets()
     } else {
-      toast.error('删除失败')
+      const { error } = await res.json().catch(() => ({ error: '删除失败' }))
+      toast.error(error || '删除失败')
     }
   }
 
