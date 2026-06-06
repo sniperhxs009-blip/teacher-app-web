@@ -25,15 +25,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const checkedRef = useRef(false)
 
   useEffect(() => {
-    const id = requestIdleCallback ? requestIdleCallback(() => {
+    const timer = setTimeout(() => {
       tabs.forEach(t => router.prefetch(t.href))
-    }) : setTimeout(() => {
-      tabs.forEach(t => router.prefetch(t.href))
-    }, 2000)
-    return () => {
-      if (requestIdleCallback) cancelIdleCallback(id as number)
-      else clearTimeout(id as ReturnType<typeof setTimeout>)
-    }
+    }, 1000)
+    return () => clearTimeout(timer)
   }, [router])
 
   useEffect(() => {
@@ -111,10 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return (
                 <button
                   key={tab.href}
-                  onPointerDown={(e) => {
-                    e.preventDefault()
-                    if (!active) router.push(tab.href)
-                  }}
+                  onClick={() => { if (!active) router.push(tab.href) }}
                   className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full rounded-2xl transition-all duration-200 select-none ${
                     active
                       ? 'text-indigo-600 bg-indigo-50/80'

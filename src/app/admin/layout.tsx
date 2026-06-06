@@ -53,16 +53,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [router])
 
   useEffect(() => {
-    // Prefetch tabs lazily in idle time
-    const id = requestIdleCallback ? requestIdleCallback(() => {
+    const timer = setTimeout(() => {
       adminTabs.forEach(t => router.prefetch(t.href))
-    }) : setTimeout(() => {
-      adminTabs.forEach(t => router.prefetch(t.href))
-    }, 2000)
-    return () => {
-      if (requestIdleCallback) cancelIdleCallback(id as number)
-      else clearTimeout(id as ReturnType<typeof setTimeout>)
-    }
+    }, 1000)
+    return () => clearTimeout(timer)
   }, [router])
 
   async function handleLogout() {
@@ -91,8 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
           <h1 className="text-[16px] font-bold text-gray-800 flex-1">管理后台</h1>
           <button onClick={handleLogout}
-            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors"
-            style={{ touchAction: 'manipulation' }}>
+            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors">
             <LogOut className="w-[18px] h-[18px]" />
           </button>
         </div>
@@ -112,10 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             return (
               <button
                 key={tab.href}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  if (!active) router.push(tab.href)
-                }}
+                onClick={() => { if (!active) router.push(tab.href) }}
                 className={`relative flex flex-col items-center justify-center min-w-0 flex-1 h-full select-none ${
                   active ? 'text-blue-600' : 'text-gray-400'
                 }`}
