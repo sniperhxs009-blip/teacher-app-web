@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { LayoutDashboard, Users, FileSpreadsheet, BookOpen, ClipboardList, ArrowLeft, ScanLine, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, FileSpreadsheet, BookOpen, ClipboardList, ArrowLeft, ScanLine, Settings, HardDrive } from 'lucide-react'
 
 const adminTabs = [
   { href: '/admin/dashboard', label: '概览', icon: LayoutDashboard },
@@ -12,6 +12,7 @@ const adminTabs = [
   { href: '/admin/sheets', label: '表格', icon: FileSpreadsheet },
   { href: '/admin/mistakes', label: '错题', icon: BookOpen },
   { href: '/admin/ocr-results', label: 'OCR', icon: ScanLine },
+  { href: '/admin/storage', label: '文件', icon: HardDrive },
   { href: '/admin/logs', label: '日志', icon: ClipboardList },
   { href: '/admin/config', label: '设置', icon: Settings },
 ]
