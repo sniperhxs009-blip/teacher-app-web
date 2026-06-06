@@ -19,11 +19,13 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
   const [hasCamera, setHasCamera] = useState(true)
+  const [started, setStarted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const startCamera = useCallback(async () => {
     try {
       setError('')
+      setReady(false)
       const constraints: MediaStreamConstraints = {
         video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
@@ -34,6 +36,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
         videoRef.current.srcObject = stream
         await videoRef.current.play()
         setReady(true)
+        setStarted(true)
       }
     } catch (err: unknown) {
       const msg = err instanceof DOMException ? err.message : '摄像头不可用'
@@ -48,14 +51,14 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     }
   }, [facingMode])
 
+  // Cleanup on unmount
   useEffect(() => {
-    startCamera()
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop())
       }
     }
-  }, [startCamera])
+  }, [])
 
   function stopCamera() {
     if (streamRef.current) {
@@ -64,9 +67,24 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
     }
   }
 
-  function switchCamera() {
+  async function switchCamera() {
     stopCamera()
-    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')
+    setReady(false)
+    const newMode = facingMode === 'environment' ? 'user' : 'environment'
+    setFacingMode(newMode)
+    // Start camera with the new facing mode directly from this click handler
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+        setReady(true)
+      }
+    } catch { /* keep current error state */ }
   }
 
   function takePhoto() {
@@ -98,6 +116,7 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
 
   function retakePhoto() {
     setCaptured(null)
+    setReady(false)
     startCamera()
   }
 
@@ -164,6 +183,12 @@ export default function CameraCapture({ mode, onCapture, onClose }: CameraCaptur
             <Camera className="w-16 h-16 text-gray-600 mb-5" />
             <p className="text-gray-400 text-[15px] whitespace-pre-line leading-relaxed">{error}</p>
           </div>
+        ) : !started ? (
+          <button onClick={startCamera} className="flex flex-col items-center justify-center h-full w-full text-white">
+            <Camera className="w-20 h-20 mb-4 opacity-60" />
+            <span className="text-[17px] font-semibold">点击打开摄像头</span>
+            <span className="text-[13px] text-gray-400 mt-2">使用后置摄像头拍摄</span>
+          </button>
         ) : (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin w-10 h-10 border-[3px] border-white/30 border-t-white rounded-full" />
