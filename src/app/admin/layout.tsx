@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { LayoutDashboard, Users, FileSpreadsheet, BookOpen, ClipboardList, ArrowLeft, ScanLine, Settings, HardDrive } from 'lucide-react'
+import { LayoutDashboard, Users, FileSpreadsheet, BookOpen, ClipboardList, ArrowLeft, ScanLine, Settings, HardDrive, LogOut } from 'lucide-react'
 
 const adminTabs = [
   { href: '/admin/dashboard', label: '概览', icon: LayoutDashboard },
@@ -22,6 +22,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
+
+  async function handleLogout() {
+    sessionStorage.removeItem('admin_auth')
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   useEffect(() => {
     async function check() {
@@ -70,7 +77,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/home" className="w-[36px] h-[36px] flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-[16px] font-bold text-gray-800">管理后台</h1>
+          <h1 className="text-[16px] font-bold text-gray-800 flex-1">管理后台</h1>
+          <button onClick={handleLogout}
+            className="w-[36px] h-[36px] flex items-center justify-center text-gray-400 active:bg-red-50 active:text-red-500 rounded-lg transition-colors">
+            <LogOut className="w-[18px] h-[18px]" />
+          </button>
         </div>
       </div>
 
