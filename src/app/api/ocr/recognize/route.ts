@@ -35,15 +35,18 @@ export async function POST(req: NextRequest) {
     const imageBuffer = Buffer.from(await imageRes.arrayBuffer())
     const imageBase64 = imageBuffer.toString('base64')
 
-    const { recognizeTable } = await import('@/lib/ai/baidu-ocr')
-    let recognizedData: { tables?: unknown; text?: string[] }
+    const { recognizeTable, recognizeText } = await import('@/lib/ai/baidu-ocr')
+
+    let recognizedData: { tables: Array<{ cells: Array<Array<{ text: string }>> }>; text?: string[] }
+    let excelBase64: string | undefined
 
     try {
-      const result = await recognizeTable(imageBase64)
-      recognizedData = { tables: result.tables }
+      const tableResult = await recognizeTable(imageBase64)
+      recognizedData = { tables: [{ cells: tableResult.cells }] }
+      excelBase64 = tableResult.excelBase64
 
-      if (result.excelBase64) {
-        const excelBuffer = Buffer.from(result.excelBase64, 'base64')
+      if (excelBase64) {
+        const excelBuffer = Buffer.from(excelBase64, 'base64')
         const excelPath = `${userId}/ocr-${ocrId}.xlsx`
         await supabase.storage.from('ocr').upload(excelPath, excelBuffer, {
           contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -61,12 +64,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: { id: ocrId } })
       }
-    } catch (ocrErr: unknown) {
-      const msg = ocrErr instanceof Error ? ocrErr.message : 'OCR识别失败'
-      console.error('OCR error:', msg)
-      const { recognizeText } = await import('@/lib/ai/baidu-ocr')
+    } catch (tableErr: unknown) {
+      console.error('Table OCR error, falling back to text:', tableErr)
       const textResult = await recognizeText(imageBase64)
-      recognizedData = { text: textResult.words }
+      recognizedData = { tables: [], text: textResult.words }
     }
 
     await supabase.from('ocr_results').update({

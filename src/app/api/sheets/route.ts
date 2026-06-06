@@ -32,6 +32,50 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
 
   const supabase = createServiceClient()
+  const contentType = req.headers.get('content-type') || ''
+
+  // JSON body: create sheet from OCR table data (headers + rows)
+  if (contentType.includes('application/json')) {
+    const body = await req.json()
+    const { title, headers, rows } = body
+    if (!title || !headers || !rows) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
+    }
+
+    const csvContent = [headers.join(','), ...rows.map((row: string[]) => row.join(','))].join('\n')
+    const fileName = `${Date.now()}-ocr-table.csv`
+    const storagePath = `${auth.user.id}/${fileName}`
+    const buffer = Buffer.from('﻿' + csvContent, 'utf-8')
+
+    const { error: uploadError } = await supabase.storage.from('sheets').upload(storagePath, buffer, {
+      contentType: 'text/csv',
+      upsert: false,
+    })
+    if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
+
+    const { data: urlData } = supabase.storage.from('sheets').getPublicUrl(storagePath)
+
+    const { data: sheet, error: dbError } = await supabase.from('sheets').insert({
+      user_id: auth.user.id,
+      title,
+      file_url: urlData.publicUrl,
+      storage_path: storagePath,
+      file_type: 'csv',
+      file_size: buffer.length,
+      subject: '',
+      grade: '',
+      exam_type: '',
+      keywords: '',
+    }).select().single()
+
+    if (dbError) {
+      await supabase.storage.from('sheets').remove([storagePath])
+      return NextResponse.json({ error: dbError.message }, { status: 500 })
+    }
+    return NextResponse.json({ data: sheet })
+  }
+
+  // FormData: file upload
   const form = await req.formData()
   const file = form.get('file') as File | null
   const title = form.get('title') as string
