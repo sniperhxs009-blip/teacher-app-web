@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+
+export async function GET(req: NextRequest) {
+  const supabase = createServiceClient()
+  const { searchParams } = new URL(req.url)
+  const search = searchParams.get('search') || ''
+  const subject = searchParams.get('subject') || ''
+  const page = parseInt(searchParams.get('page') || '1')
+  const limit = parseInt(searchParams.get('limit') || '20')
+  const userId = searchParams.get('userId')
+
+  let query = supabase.from('sheets').select('*', { count: 'exact' })
+
+  if (userId) {
+    query = query.eq('user_id', userId)
+  }
+  if (subject) {
+    query = query.eq('subject', subject)
+  }
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,keywords.ilike.%${search}%,subject.ilike.%${search}%`)
+  }
+
+  const from = (page - 1) * limit
+  const { data, error, count } = await query.order('created_at', { ascending: false }).range(from, from + limit - 1)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data, count, page, limit })
+}
+
+export async function POST(req: NextRequest) {
+  const supabase = createServiceClient()
+  const form = await req.formData()
+  const file = form.get('file') as File | null
+  const userId = form.get('userId') as string
+  const title = form.get('title') as string
+  const subject = form.get('subject') as string
+  const grade = form.get('grade') as string
+  const examType = form.get('examType') as string
+  const examDate = form.get('examDate') as string
+  const keywords = form.get('keywords') as string
+
+  if (!file || !userId || !title) {
+    return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
+  }
+
+  const ext = file.name.split('.').pop() || 'xlsx'
+  const storagePath = `${userId}/${Date.now()}-${file.name}`
+  const buffer = Buffer.from(await file.arrayBuffer())
+
+  const { error: uploadError } = await supabase.storage.from('sheets').upload(storagePath, buffer, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  })
+
+  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
+
+  const { data: urlData } = supabase.storage.from('sheets').getPublicUrl(storagePath)
+
+  const { data: sheet, error: dbError } = await supabase.from('sheets').insert({
+    user_id: userId,
+    title,
+    file_url: urlData.publicUrl,
+    storage_path: storagePath,
+    file_type: ext,
+    file_size: file.size,
+    subject: subject || '',
+    grade: grade || '',
+    exam_type: examType || '',
+    exam_date: examDate || null,
+    keywords: keywords || '',
+  }).select().single()
+
+  if (dbError) {
+    await supabase.storage.from('sheets').remove([storagePath])
+    return NextResponse.json({ error: dbError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data: sheet })
+}
